@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from '../hooks/use-auth';
+import { useAuth } from '../hooks/use-auth.js';
 
 const SignIn = () => {
   const [email, setEmail] = useState('');
@@ -33,6 +33,7 @@ const SignIn = () => {
   };
 
   const handleGoogleSuccess = async (credentialResponse) => {
+    console.log('Google login success:', credentialResponse);
     const success = await googleLogin(credentialResponse.credential);
     if (success) {
       navigate('/dashboard');
@@ -103,6 +104,10 @@ const SignIn = () => {
               onSuccess={handleGoogleSuccess}
               onError={handleGoogleError}
               useOneTap
+              shape="rectangular"
+              theme="filled_blue"
+              text="signin_with"
+              size="large"
             />
           </div>
         </CardContent>

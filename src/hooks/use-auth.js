@@ -9,6 +9,11 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Set base URL for API requests
+  useEffect(() => {
+    axios.defaults.baseURL = 'http://localhost:5000';
+  }, []);
+
   useEffect(() => {
     // Check if user is logged in on mount
     const checkLoggedIn = async () => {
@@ -18,6 +23,7 @@ export const AuthProvider = ({ children }) => {
           axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
           const response = await axios.get('/api/auth/me');
           setUser(response.data);
+          console.log('User authenticated:', response.data);
         }
       } catch (error) {
         console.error('Authentication error:', error);
@@ -61,6 +67,7 @@ export const AuthProvider = ({ children }) => {
 
   const googleLogin = async (tokenId) => {
     try {
+      console.log('Sending Google token to server:', tokenId);
       const response = await axios.post('/api/auth/google', { tokenId });
       const { token, user } = response.data;
       

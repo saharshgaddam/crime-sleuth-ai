@@ -6,15 +6,19 @@ import {
   Menu, 
   LogIn, 
   X, 
-  FileText, 
-  LayoutDashboard 
+  LogOut, 
+  LayoutDashboard,
+  User
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "@/hooks/use-auth";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isMobile = useIsMobile();
+  const { user, logout } = useAuth();
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -37,18 +41,39 @@ export function Navbar() {
             <Link to="/about" className="text-sm font-medium transition-colors hover:text-primary">
               About
             </Link>
-            <Link to="/dashboard">
-              <Button variant="outline" size="sm" className="gap-1">
-                <LayoutDashboard className="h-4 w-4" />
-                Dashboard
-              </Button>
-            </Link>
-            <Link to="/signin">
-              <Button size="sm" className="gap-1">
-                <LogIn className="h-4 w-4" />
-                Sign In
-              </Button>
-            </Link>
+            
+            {user ? (
+              <>
+                <Link to="/dashboard">
+                  <Button variant="outline" size="sm" className="gap-1">
+                    <LayoutDashboard className="h-4 w-4" />
+                    Dashboard
+                  </Button>
+                </Link>
+                <div className="flex items-center gap-2">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={user.avatar} alt={user.name} />
+                    <AvatarFallback>{user.name?.charAt(0) || 'U'}</AvatarFallback>
+                  </Avatar>
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    className="gap-1"
+                    onClick={logout}
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Logout
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <Link to="/signin">
+                <Button size="sm" className="gap-1">
+                  <LogIn className="h-4 w-4" />
+                  Sign In
+                </Button>
+              </Link>
+            )}
           </nav>
         ) : (
           <Button 
@@ -86,22 +111,38 @@ export function Navbar() {
             >
               About
             </Link>
-            <Link 
-              to="/dashboard" 
-              className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-accent"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              <LayoutDashboard className="h-4 w-4" />
-              Dashboard
-            </Link>
-            <Link 
-              to="/signin" 
-              className="flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              <LogIn className="h-4 w-4" />
-              Sign In
-            </Link>
+            
+            {user ? (
+              <>
+                <Link 
+                  to="/dashboard" 
+                  className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-accent"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <LayoutDashboard className="h-4 w-4" />
+                  Dashboard
+                </Link>
+                <button 
+                  className="flex items-center gap-2 rounded-md bg-red-100 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-200"
+                  onClick={() => {
+                    logout();
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  <LogOut className="h-4 w-4" />
+                  Logout
+                </button>
+              </>
+            ) : (
+              <Link 
+                to="/signin" 
+                className="flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <LogIn className="h-4 w-4" />
+                Sign In
+              </Link>
+            )}
           </nav>
         </div>
       )}
