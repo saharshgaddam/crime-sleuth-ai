@@ -1,5 +1,5 @@
 
-import { useState, useRef } from "react";
+import React, { useState, useRef } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -40,6 +40,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function Case() {
   const { caseId } = useParams();
@@ -51,6 +52,7 @@ export default function Case() {
   const fileInputRef = useRef(null);
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const { user } = useAuth();
 
   const triggerFileUpload = () => {
     if (fileInputRef.current) {
@@ -203,7 +205,7 @@ export default function Case() {
             <Settings className="w-4 h-4" />
           </Button>
           <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white">
-            U
+            {user?.name?.charAt(0) || 'U'}
           </div>
         </div>
       </header>

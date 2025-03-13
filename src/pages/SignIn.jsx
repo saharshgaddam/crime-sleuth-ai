@@ -1,20 +1,27 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from '../hooks/use-auth.js';
+import { useAuth } from '../hooks/use-auth';
 
 const SignIn = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
   const [name, setName] = useState('');
-  const { login, googleLogin, register } = useAuth();
+  const { user, loading, login, googleLogin, register } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Redirect if already logged in
+    if (user && !loading) {
+      navigate('/dashboard');
+    }
+  }, [user, loading, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -43,6 +50,14 @@ const SignIn = () => {
   const handleGoogleError = () => {
     console.error('Google Sign In was unsuccessful');
   };
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <p>Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
