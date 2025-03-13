@@ -1,114 +1,125 @@
 
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { GoogleLogin } from '@react-oauth/google';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Fingerprint, ArrowLeft } from "lucide-react";
-import { Navbar } from "@/components/Navbar";
-import { Footer } from "@/components/Footer";
-import { useToast } from "@/hooks/use-toast";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from '../hooks/use-auth';
 
-export default function SignIn() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+const SignIn = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [name, setName] = useState('');
+  const { login, googleLogin, register } = useAuth();
   const navigate = useNavigate();
-  const { toast } = useToast();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
     
-    // Simulate authentication (replace with actual auth in a real app)
-    setTimeout(() => {
-      setIsLoading(false);
-      
-      // For demo purposes, accept any login
-      toast({
-        title: "Welcome back",
-        description: "You have successfully signed in.",
-      });
-      
-      navigate("/dashboard");
-    }, 1500);
+    if (isRegistering) {
+      const success = await register({ name, email, password });
+      if (success) {
+        setIsRegistering(false);
+      }
+    } else {
+      const success = await login({ email, password });
+      if (success) {
+        navigate('/dashboard');
+      }
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    const success = await googleLogin(credentialResponse.credential);
+    if (success) {
+      navigate('/dashboard');
+    }
+  };
+
+  const handleGoogleError = () => {
+    console.error('Google Sign In was unsuccessful');
   };
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <Navbar />
-      
-      <div className="flex-1 container flex flex-col items-center justify-center px-4 py-12">
-        <Link to="/" className="absolute left-4 top-20 inline-flex items-center text-sm font-medium text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="mr-1 h-4 w-4" />
-          Back to home
-        </Link>
-        
-        <div className="mx-auto w-full max-w-md space-y-6">
-          <div className="flex flex-col space-y-2 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-              <Fingerprint className="h-8 w-8 text-forensic" />
-            </div>
-            <h1 className="text-2xl font-semibold tracking-tight">Sign in to CrimeSleuth AI</h1>
-            <p className="text-sm text-muted-foreground">
-              Enter your email below to sign in to your account
-            </p>
-          </div>
-          
-          <div className="grid gap-6">
-            <form onSubmit={handleSubmit}>
-              <div className="grid gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    placeholder="name@example.com"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    autoCapitalize="none"
-                    autoComplete="email"
-                    autoCorrect="off"
-                    required
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="password">Password</Label>
-                    <Link
-                      to="/forgot-password"
-                      className="text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      Forgot password?
-                    </Link>
-                  </div>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    autoCapitalize="none"
-                    autoComplete="current-password"
-                    autoCorrect="off"
-                    required
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Signing in..." : "Sign in"}
-                </Button>
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle className="text-center text-2xl font-bold">
+            {isRegistering ? 'Create your account' : 'Sign in to your account'}
+          </CardTitle>
+          <CardDescription className="text-center">
+            {isRegistering ? 'Enter your details below to create your account' : 'Enter your credentials below to access your account'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {isRegistering && (
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name</Label>
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="John Doe"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
               </div>
-            </form>
-            <div className="text-center text-sm">
-              Don't have an account?{" "}
-              <Link to="/signup" className="font-medium text-primary hover:underline">
-                Sign up
-              </Link>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="youremail@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            <Button type="submit" className="w-full">
+              {isRegistering ? 'Register' : 'Sign In'}
+            </Button>
+          </form>
+          <div className="mt-4 flex items-center justify-center">
+            <span className="text-sm">Or continue with</span>
           </div>
-        </div>
-      </div>
-      
-      <Footer />
+          <div className="mt-4 flex justify-center">
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+              useOneTap
+            />
+          </div>
+        </CardContent>
+        <CardFooter className="flex justify-center">
+          <Button
+            variant="link"
+            onClick={() => setIsRegistering(!isRegistering)}
+            className="text-sm"
+          >
+            {isRegistering
+              ? 'Already have an account? Sign in'
+              : "Don't have an account? Register"}
+          </Button>
+        </CardFooter>
+      </Card>
     </div>
   );
-}
+};
+
+export default SignIn;
