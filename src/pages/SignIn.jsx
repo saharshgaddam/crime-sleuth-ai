@@ -2,10 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../components/ui/card";
 import { useAuth } from '../hooks/use-auth';
 
 const SignIn = () => {
@@ -41,9 +41,13 @@ const SignIn = () => {
 
   const handleGoogleSuccess = async (credentialResponse) => {
     console.log('Google login success:', credentialResponse);
-    const success = await googleLogin(credentialResponse.credential);
-    if (success) {
-      navigate('/dashboard');
+    if (credentialResponse.credential) {
+      const success = await googleLogin(credentialResponse.credential);
+      if (success) {
+        navigate('/dashboard');
+      }
+    } else {
+      console.error('No credential received from Google');
     }
   };
 

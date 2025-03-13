@@ -11,6 +11,7 @@ export const AuthProvider = ({ children }) => {
 
   // Set base URL for API requests
   useEffect(() => {
+    // Set your backend API URL here
     axios.defaults.baseURL = 'http://localhost:5000';
   }, []);
 
@@ -22,8 +23,10 @@ export const AuthProvider = ({ children }) => {
         if (token) {
           axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
           const response = await axios.get('/api/auth/me');
-          setUser(response.data);
-          console.log('User authenticated:', response.data);
+          if (response.data) {
+            console.log('User authenticated:', response.data);
+            setUser(response.data);
+          }
         }
       } catch (error) {
         console.error('Authentication error:', error);
@@ -86,7 +89,7 @@ export const AuthProvider = ({ children }) => {
       
       toast({
         title: "Login Failed",
-        description: error.response?.data?.message || "Authentication failed",
+        description: error.response?.data?.message || "Google authentication failed",
         variant: "destructive",
       });
       
