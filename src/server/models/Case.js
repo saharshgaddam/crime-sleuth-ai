@@ -13,7 +13,7 @@ const CaseSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['Active', 'In Progress', 'Completed'],
+    enum: ['Active', 'In Progress', 'Completed', 'New'],
     default: 'Active'
   },
   images: [{

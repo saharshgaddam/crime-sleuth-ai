@@ -1,47 +1,77 @@
 
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "../components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { useAuth } from '../hooks/use-auth';
 import { Microscope, FileText, BarChart3, Plus } from 'lucide-react';
+import axios from 'axios';
+import { toast } from '../hooks/use-toast';
 
 const Dashboard = () => {
   const { user, loading, logout } = useAuth();
   const navigate = useNavigate();
-  const [cases, setCases] = useState([
-    { id: 'case-001', title: 'Riverside Homicide', date: '2023-05-15', status: 'Active' },
-    { id: 'case-002', title: 'Downtown Robbery', date: '2023-06-22', status: 'In Progress' },
-  ]);
+  const [cases, setCases] = useState([]);
+  const [loadingCases, setLoadingCases] = useState(true);
 
   useEffect(() => {
     if (!loading && !user) {
       navigate('/signin');
     }
   }, [user, loading, navigate]);
-
-  const handleCreateNewCase = () => {
-    const newCaseId = `case-${String(cases.length + 1).padStart(3, '0')}`;
-    const newCase = {
-      id: newCaseId,
-      title: `New Case #${cases.length + 1}`,
-      date: new Date().toISOString().split('T')[0],
-      status: 'New'
+  
+  useEffect(() => {
+    // Fetch cases when user is authenticated
+    const fetchCases = async () => {
+      if (user) {
+        try {
+          setLoadingCases(true);
+          const response = await axios.get('/api/cases');
+          setCases(response.data);
+        } catch (error) {
+          console.error('Error fetching cases:', error);
+          toast({
+            title: "Error",
+            description: "Failed to load your cases",
+            variant: "destructive",
+          });
+        } finally {
+          setLoadingCases(false);
+        }
+      }
     };
-    setCases([...cases, newCase]);
-    navigate(`/case/${newCaseId}`);
+    
+    fetchCases();
+  }, [user]);
+
+  const handleCreateNewCase = async () => {
+    try {
+      const response = await axios.post('/api/cases', {
+        title: `New Case #${cases.length + 1}`,
+        status: 'New'
+      });
+      
+      const newCase = response.data;
+      setCases([...cases, newCase]);
+      navigate(`/case/${newCase._id}`);
+    } catch (error) {
+      console.error('Error creating case:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create a new case",
+        variant: "destructive",
+      });
+    }
   };
 
-  if (loading) {
+  if (loading || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <p>Loading...</p>
       </div>
     );
   }
-
-  if (!user) return null;
 
   return (
     <div className="container mx-auto px-4 py-10">
@@ -83,34 +113,47 @@ const Dashboard = () => {
         </Button>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {cases.map((caseItem) => (
-          <Link key={caseItem.id} to={`/case/${caseItem.id}`}>
-            <Card className="cursor-pointer transition-all hover:shadow-md">
-              <CardHeader>
-                <CardTitle>{caseItem.title}</CardTitle>
-                <CardDescription>Case #{caseItem.id.split('-')[1]} • {caseItem.date}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex justify-between items-center">
-                  <span className={`px-2 py-1 rounded-full text-xs ${
-                    caseItem.status === 'Active' ? 'bg-green-100 text-green-800' : 
-                    caseItem.status === 'In Progress' ? 'bg-blue-100 text-blue-800' : 
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {caseItem.status}
-                  </span>
-                  <div className="flex space-x-2">
-                    <Microscope className="h-4 w-4" />
-                    <FileText className="h-4 w-4" />
-                    <BarChart3 className="h-4 w-4" />
+      {loadingCases ? (
+        <div className="text-center py-8">
+          <p>Loading your cases...</p>
+        </div>
+      ) : cases.length === 0 ? (
+        <div className="text-center py-8 bg-gray-50 rounded-lg border">
+          <p className="mb-4">You don't have any cases yet.</p>
+          <Button onClick={handleCreateNewCase}>
+            <Plus className="mr-2 h-4 w-4" /> Create your first case
+          </Button>
+        </div>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {cases.map((caseItem) => (
+            <Link key={caseItem._id} to={`/case/${caseItem._id}`}>
+              <Card className="cursor-pointer transition-all hover:shadow-md">
+                <CardHeader>
+                  <CardTitle>{caseItem.title}</CardTitle>
+                  <CardDescription>Created: {new Date(caseItem.createdAt).toLocaleDateString()}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex justify-between items-center">
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      caseItem.status === 'Active' ? 'bg-green-100 text-green-800' : 
+                      caseItem.status === 'In Progress' ? 'bg-blue-100 text-blue-800' : 
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {caseItem.status}
+                    </span>
+                    <div className="flex space-x-2">
+                      <Microscope className="h-4 w-4" />
+                      <FileText className="h-4 w-4" />
+                      <BarChart3 className="h-4 w-4" />
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
