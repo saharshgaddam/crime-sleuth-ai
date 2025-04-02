@@ -1,6 +1,55 @@
 
 const User = require('../models/User');
 const crypto = require('crypto');
+const passport = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+
+// Configure passport for Google OAuth
+passport.use(
+  new GoogleStrategy(
+    {
+      clientID: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      callbackURL: `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/auth/google/callback`,
+      scope: ['profile', 'email']
+    },
+    async (accessToken, refreshToken, profile, done) => {
+      try {
+        // Check if user already exists
+        let user = await User.findOne({ email: profile.emails[0].value });
+        
+        if (user) {
+          return done(null, user);
+        }
+        
+        // Create new user if doesn't exist
+        user = await User.create({
+          name: profile.displayName,
+          email: profile.emails[0].value,
+          password: crypto.randomBytes(20).toString('hex'), // Generate random password
+          role: 'investigator' // Default role
+        });
+        
+        return done(null, user);
+      } catch (err) {
+        return done(err, null);
+      }
+    }
+  )
+);
+
+passport.serializeUser((user, done) => {
+  done(null, user.id);
+});
+
+passport.deserializeUser(async (id, done) => {
+  try {
+    const user = await User.findById(id);
+    done(null, user);
+  } catch (err) {
+    done(err, null);
+  }
+});
 
 // @desc      Register user
 // @route     POST /api/auth/register
@@ -174,6 +223,32 @@ exports.updatePassword = async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
+};
+
+// @desc      Google auth
+// @route     GET /api/auth/google
+// @access    Public
+exports.googleAuth = passport.authenticate('google', { scope: ['profile', 'email'] });
+
+// @desc      Google auth callback
+// @route     GET /api/auth/google/callback
+// @access    Public
+exports.googleCallback = (req, res, next) => {
+  passport.authenticate('google', (err, user) => {
+    if (err) {
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/signin?error=${err.message}`);
+    }
+    
+    if (!user) {
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/signin?error=Unable to authenticate with Google`);
+    }
+    
+    // Generate JWT token
+    const token = user.getSignedJwtToken();
+    
+    // Redirect to frontend with token
+    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/oauth-callback?token=${token}`);
+  })(req, res, next);
 };
 
 // Helper function to get token from model, create cookie and send response
