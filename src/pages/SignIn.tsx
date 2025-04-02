@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,8 @@ import { Fingerprint, ArrowLeft } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { useToast } from "@/hooks/use-toast";
+import { GoogleLogin } from '@react-oauth/google';
+import { useAuth } from "@/hooks/use-auth";
 
 export default function SignIn() {
   const [email, setEmail] = useState("");
@@ -15,23 +17,50 @@ export default function SignIn() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { login, googleLogin, user } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulate authentication (replace with actual auth in a real app)
-    setTimeout(() => {
-      setIsLoading(false);
-      
-      // For demo purposes, accept any login
-      toast({
-        title: "Welcome back",
-        description: "You have successfully signed in.",
-      });
-      
+    const success = await login({ email, password });
+    setIsLoading(false);
+    
+    if (success) {
       navigate("/dashboard");
-    }, 1500);
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    console.log('Google login success:', credentialResponse);
+    if (credentialResponse.credential) {
+      const success = await googleLogin(credentialResponse.credential);
+      if (success) {
+        navigate('/dashboard');
+      }
+    } else {
+      console.error('No credential received from Google');
+      toast({
+        title: "Login Failed",
+        description: "Could not authenticate with Google",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleGoogleError = () => {
+    console.error('Google Sign In was unsuccessful');
+    toast({
+      title: "Login Failed",
+      description: "Google authentication failed",
+      variant: "destructive",
+    });
   };
 
   return (
@@ -98,6 +127,30 @@ export default function SignIn() {
                 </Button>
               </div>
             </form>
+            
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  Or continue with
+                </span>
+              </div>
+            </div>
+            
+            <div className="flex justify-center">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={handleGoogleError}
+                useOneTap
+                shape="rectangular"
+                theme="filled_blue"
+                text="signin_with"
+                size="large"
+              />
+            </div>
+            
             <div className="text-center text-sm">
               Don't have an account?{" "}
               <Link to="/signup" className="font-medium text-primary hover:underline">
