@@ -11,8 +11,8 @@ export const AuthProvider = ({ children }) => {
 
   // Set base URL for API requests
   useEffect(() => {
-    // Set your backend API URL here
-    axios.defaults.baseURL = 'http://localhost:5000';
+    // Set your backend API URL from environment variable
+    axios.defaults.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
   }, []);
 
   useEffect(() => {
