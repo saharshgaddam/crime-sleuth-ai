@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -25,6 +25,8 @@ import {
   Scroll,
   LayoutGrid,
   Info,
+  Check,
+  Loader,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,46 +42,123 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { Textarea } from "@/components/ui/textarea";
+import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from "@/components/ui/form";
+import { useForm } from "react-hook-form";
 
 export default function Case() {
   const { caseId } = useParams();
   const [caseName, setCaseName] = useState(`Case #${caseId?.replace("case-", "")}`);
-  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [description, setDescription] = useState("");
+  const [uploadedImages, setUploadedImages] = useState<{ id: string, src: string, name: string, date: Date }[]>([]);
+  const [uploadedDocs, setUploadedDocs] = useState<{ id: string, name: string, type: string, date: Date }[]>([]);
   const [activeTab, setActiveTab] = useState<"sources" | "chat" | "studio">("sources");
+  const [loading, setLoading] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [sourceType, setSourceType] = useState<"all" | "images" | "documents">("all");
+  const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle file upload with proper error handling and file type validation
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files) return;
+    if (!files || files.length === 0) return;
 
-    const newImages: string[] = [];
+    setIsUploading(true);
     
-    Array.from(files).forEach((file) => {
-      if (file.type.startsWith("image/")) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          if (e.target?.result) {
-            newImages.push(e.target.result.toString());
-            
-            // If this is the last file, update state
-            if (newImages.length === files.length) {
-              setUploadedImages([...uploadedImages, ...newImages]);
-              toast({
-                title: "Upload Successful",
-                description: `Uploaded ${files.length} image${files.length !== 1 ? "s" : ""}.`,
-              });
-            }
-          }
-        };
-        reader.readAsDataURL(file);
+    const imageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    const docTypes = ['application/pdf', 'text/plain', 'application/msword', 
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    
+    try {
+      const newImages: { id: string, src: string, name: string, date: Date }[] = [];
+      const newDocs: { id: string, name: string, type: string, date: Date }[] = [];
+      
+      // Process each file based on type
+      for (const file of Array.from(files)) {
+        if (imageTypes.includes(file.type)) {
+          // Process images
+          const result = await readFileAsDataURL(file);
+          newImages.push({
+            id: generateId(),
+            src: result,
+            name: file.name,
+            date: new Date()
+          });
+        } else if (docTypes.includes(file.type)) {
+          // Process documents
+          newDocs.push({
+            id: generateId(),
+            name: file.name,
+            type: file.type,
+            date: new Date()
+          });
+        }
       }
+      
+      // Update the state with new files
+      if (newImages.length > 0) {
+        setUploadedImages(prev => [...prev, ...newImages]);
+      }
+      
+      if (newDocs.length > 0) {
+        setUploadedDocs(prev => [...prev, ...newDocs]);
+      }
+      
+      // Show success toast
+      const totalFiles = newImages.length + newDocs.length;
+      if (totalFiles > 0) {
+        toast({
+          title: "Upload Successful",
+          description: `Uploaded ${totalFiles} file${totalFiles !== 1 ? 's' : ''}.`,
+        });
+      } else {
+        toast({
+          title: "No valid files",
+          description: "Please upload images or documents.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error("Error uploading files:", error);
+      toast({
+        title: "Upload Failed",
+        description: "There was a problem uploading your files.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploading(false);
+      
+      // Reset the file input
+      if (e.target) {
+        e.target.value = '';
+      }
+    }
+  };
+
+  // Helper function to read file as data URL
+  const readFileAsDataURL = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          resolve(event.target.result.toString());
+        } else {
+          reject(new Error("Failed to read file"));
+        }
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
     });
   };
 
-  const handleDeleteImage = (index: number) => {
-    const newImages = [...uploadedImages];
-    newImages.splice(index, 1);
-    setUploadedImages(newImages);
+  // Generate a unique ID for files
+  const generateId = () => {
+    return Date.now().toString(36) + Math.random().toString(36).substring(2);
+  };
+
+  const handleDeleteImage = (id: string) => {
+    setUploadedImages(prev => prev.filter(img => img.id !== id));
     
     toast({
       title: "Image Deleted",
@@ -87,7 +166,27 @@ export default function Case() {
     });
   };
 
+  const handleDeleteDocument = (id: string) => {
+    setUploadedDocs(prev => prev.filter(doc => doc.id !== id));
+    
+    toast({
+      title: "Document Deleted",
+      description: "The document has been removed from your case.",
+    });
+  };
+
   const analyzeEvidence = () => {
+    const totalSources = uploadedImages.length + uploadedDocs.length;
+    if (totalSources === 0) {
+      toast({
+        title: "No Evidence to Analyze",
+        description: "Please upload at least one source before analysis.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setAnalyzing(true);
     toast({
       title: "Analysis Started",
       description: "Your evidence is being analyzed. This may take a moment.",
@@ -96,11 +195,55 @@ export default function Case() {
     // Simulate analysis time
     setTimeout(() => {
       setActiveTab("studio");
+      setAnalyzing(false);
       toast({
         title: "Analysis Complete",
         description: "Your evidence has been analyzed. View the results in the Studio tab.",
       });
     }, 2000);
+  };
+
+  // Filter sources based on selected type
+  const filteredSources = () => {
+    if (sourceType === "images") return uploadedImages;
+    if (sourceType === "documents") return uploadedDocs.map(doc => ({
+      id: doc.id,
+      src: "", // No image source for docs
+      name: doc.name,
+      date: doc.date
+    }));
+    
+    // For "all", combine both types
+    const images = uploadedImages.map(img => ({ ...img, type: "image" }));
+    const docs = uploadedDocs.map(doc => ({ 
+      id: doc.id, 
+      src: "", 
+      name: doc.name, 
+      date: doc.date, 
+      type: "document" 
+    }));
+    
+    // Sort combined sources by date (newest first)
+    return [...images, ...docs].sort((a, b) => b.date.getTime() - a.date.getTime());
+  };
+
+  // Get total count of all sources
+  const getTotalSourceCount = () => {
+    return uploadedImages.length + uploadedDocs.length;
+  };
+
+  const form = useForm({
+    defaultValues: {
+      notes: "",
+    },
+  });
+
+  const onSubmitNotes = (data: { notes: string }) => {
+    toast({
+      title: "Notes Saved",
+      description: "Your notes have been saved successfully.",
+    });
+    form.reset();
   };
 
   return (
@@ -109,8 +252,8 @@ export default function Case() {
       <header className="flex items-center justify-between p-4 border-b">
         <div className="flex items-center gap-4">
           <Link to="/dashboard">
-            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
-              <Microscope className="w-5 h-5 text-primary" />
+            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 hover:bg-primary/20 transition-colors">
+              <ArrowLeft className="w-5 h-5 text-primary" />
             </div>
           </Link>
           <h1 className="text-xl font-semibold">{caseName}</h1>
@@ -137,19 +280,51 @@ export default function Case() {
         <div className={`w-96 border-r overflow-y-auto flex flex-col ${activeTab === "sources" ? "block" : "hidden md:block"}`}>
           <div className="flex items-center justify-between p-4 border-b">
             <h2 className="font-semibold">Sources</h2>
-            <Button variant="ghost" size="icon">
-              <LayoutGrid className="w-4 h-4" />
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="ghost" size="icon" onClick={() => setSourceType("all")} 
+                className={sourceType === "all" ? "bg-accent" : ""}>
+                <LayoutGrid className="w-4 h-4" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => setSourceType("images")}
+                className={sourceType === "images" ? "bg-accent" : ""}>
+                <Image className="w-4 h-4" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => setSourceType("documents")}
+                className={sourceType === "documents" ? "bg-accent" : ""}>
+                <FileText className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
           
           <div className="p-3">
-            <Button className="w-full justify-center" size="sm">
-              <Plus className="w-4 h-4 mr-2" />
-              Add source
-            </Button>
+            <Input
+              id="file-upload"
+              type="file"
+              className="hidden"
+              accept="image/*,.pdf,.doc,.docx,.txt"
+              multiple
+              onChange={handleFileUpload}
+            />
+            <label htmlFor="file-upload">
+              <Button className="w-full justify-center" size="sm" asChild disabled={isUploading}>
+                <span>
+                  {isUploading ? (
+                    <>
+                      <Loader className="w-4 h-4 mr-2 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add source
+                    </>
+                  )}
+                </span>
+              </Button>
+            </label>
           </div>
           
-          {uploadedImages.length === 0 ? (
+          {getTotalSourceCount() === 0 ? (
             <div className="flex flex-col items-center justify-center flex-1 p-8 text-center text-muted-foreground">
               <div className="p-3 bg-muted rounded-lg mb-3">
                 <FileText className="w-8 h-8" />
@@ -161,14 +336,14 @@ export default function Case() {
               
               <div className="mt-8">
                 <Input
-                  id="file-upload"
+                  id="empty-file-upload"
                   type="file"
                   className="hidden"
-                  accept="image/*"
+                  accept="image/*,.pdf,.doc,.docx,.txt"
                   multiple
                   onChange={handleFileUpload}
                 />
-                <label htmlFor="file-upload">
+                <label htmlFor="empty-file-upload">
                   <Button variant="outline" className="gap-1" asChild>
                     <span>
                       <UploadCloud className="h-4 w-4 mr-1" />
@@ -180,45 +355,66 @@ export default function Case() {
             </div>
           ) : (
             <div className="p-4 space-y-3">
-              {uploadedImages.map((src, index) => (
-                <div 
-                  key={index} 
-                  className="relative group rounded-md border overflow-hidden flex items-center p-2 hover:bg-accent cursor-pointer"
-                  onClick={() => {/* Preview image logic */}}
-                >
-                  <div className="h-12 w-12 rounded overflow-hidden mr-3 flex-shrink-0">
-                    <img
-                      src={src}
-                      alt={`Evidence ${index + 1}`}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">Evidence image {index + 1}</p>
-                    <p className="text-xs text-muted-foreground">Image • Added {new Date().toLocaleDateString()}</p>
-                  </div>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="opacity-0 group-hover:opacity-100"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteImage(index);
-                    }}
+              {filteredSources().map((item) => {
+                const isDocument = !item.src || item.type === "document";
+                
+                return (
+                  <div 
+                    key={item.id} 
+                    className="relative group rounded-md border overflow-hidden flex items-center p-2 hover:bg-accent cursor-pointer"
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
+                    <div className="h-12 w-12 rounded overflow-hidden mr-3 flex-shrink-0 bg-muted flex items-center justify-center">
+                      {isDocument ? (
+                        <FileText className="h-6 w-6 text-muted-foreground" />
+                      ) : (
+                        <img
+                          src={item.src}
+                          alt={item.name}
+                          className="h-full w-full object-cover"
+                        />
+                      )}
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {isDocument ? "Document" : "Image"} • Added {item.date.toLocaleDateString()}
+                      </p>
+                    </div>
+                    
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="opacity-0 group-hover:opacity-100"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        isDocument ? handleDeleteDocument(item.id) : handleDeleteImage(item.id);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                );
+              })}
               
               <div className="pt-3">
-                {uploadedImages.length > 0 && (
+                {getTotalSourceCount() > 0 && (
                   <Button 
                     className="w-full" 
                     onClick={analyzeEvidence}
+                    disabled={analyzing}
                   >
-                    <Microscope className="h-4 w-4 mr-2" />
-                    Analyze Evidence
+                    {analyzing ? (
+                      <>
+                        <Loader className="h-4 w-4 mr-2 animate-spin" />
+                        Analyzing...
+                      </>
+                    ) : (
+                      <>
+                        <Microscope className="h-4 w-4 mr-2" />
+                        Analyze Evidence
+                      </>
+                    )}
                   </Button>
                 )}
               </div>
@@ -229,8 +425,13 @@ export default function Case() {
           <div className="mt-auto p-4 border-t">
             <div className="flex items-center bg-muted/80 rounded-lg p-3">
               <div className="flex-1">
-                <p className="text-sm">Upload a source to get started</p>
-                <p className="text-xs text-muted-foreground">0 sources</p>
+                <p className="text-sm">
+                  {getTotalSourceCount() === 0 
+                    ? "Upload a source to get started" 
+                    : `${getTotalSourceCount()} source${getTotalSourceCount() !== 1 ? 's' : ''} added`
+                  }
+                </p>
+                <p className="text-xs text-muted-foreground">{uploadedImages.length} images, {uploadedDocs.length} documents</p>
               </div>
               <Button size="sm" className="rounded-full w-8 h-8 p-0 flex-shrink-0">
                 <ChevronRight className="h-4 w-4" />
@@ -246,20 +447,20 @@ export default function Case() {
           </div>
           
           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-muted-foreground">
-            {uploadedImages.length === 0 ? (
+            {getTotalSourceCount() === 0 ? (
               <>
                 <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-4">
                   <UploadCloud className="w-6 h-6 text-primary" />
                 </div>
                 <h3 className="text-xl font-medium mb-2">Add a source to get started</h3>
                 <p className="text-sm max-w-md mb-8">
-                  Upload evidence images to analyze or generate forensic reports
+                  Upload evidence images or documents to analyze or generate forensic reports
                 </p>
                 <Input
                   id="chat-file-upload"
                   type="file"
                   className="hidden"
-                  accept="image/*"
+                  accept="image/*,.pdf,.doc,.docx,.txt"
                   multiple
                   onChange={handleFileUpload}
                 />
@@ -283,9 +484,19 @@ export default function Case() {
                 <Button
                   className="mt-8"
                   onClick={analyzeEvidence}
+                  disabled={analyzing}
                 >
-                  <Microscope className="h-4 w-4 mr-2" />
-                  Analyze Evidence
+                  {analyzing ? (
+                    <>
+                      <Loader className="h-4 w-4 mr-2 animate-spin" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Microscope className="h-4 w-4 mr-2" />
+                      Analyze Evidence
+                    </>
+                  )}
                 </Button>
               </>
             )}
@@ -320,7 +531,7 @@ export default function Case() {
                   <div>
                     <h4 className="font-medium">Crime Scene Analysis</h4>
                     <p className="text-xs text-muted-foreground">
-                      {uploadedImages.length} image{uploadedImages.length !== 1 ? "s" : ""} uploaded
+                      {getTotalSourceCount()} source{getTotalSourceCount() !== 1 ? "s" : ""} uploaded
                     </p>
                   </div>
                 </div>
@@ -366,10 +577,12 @@ export default function Case() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-medium">Notes</h3>
-                <Button variant="ghost" size="sm" className="h-7 gap-1">
-                  <Plus className="h-3.5 w-3.5" />
-                  Add note
-                </Button>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-7 gap-1">
+                    <Plus className="h-3.5 w-3.5" />
+                    Add note
+                  </Button>
+                </DialogTrigger>
               </div>
               
               <div className="grid grid-cols-2 gap-2 mb-2">
@@ -393,6 +606,42 @@ export default function Case() {
                   <span className="truncate">Timeline</span>
                 </Button>
               </div>
+
+              {/* Notes Input Dialog */}
+              <Dialog>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>Add Note</DialogTitle>
+                    <DialogDescription>
+                      Create a new note for this case.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmitNotes)} className="space-y-4">
+                      <FormField
+                        control={form.control}
+                        name="notes"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Notes</FormLabel>
+                            <FormControl>
+                              <Textarea 
+                                placeholder="Enter your notes here..."
+                                className="min-h-[120px]"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <DialogFooter>
+                        <Button type="submit">Save Note</Button>
+                      </DialogFooter>
+                    </form>
+                  </Form>
+                </DialogContent>
+              </Dialog>
             </div>
             
             <div className="mt-12 flex flex-col items-center justify-center p-6 text-center border rounded-lg">
