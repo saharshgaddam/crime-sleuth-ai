@@ -27,6 +27,10 @@ import {
   Info,
   Check,
   Loader,
+  X,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,17 +50,38 @@ import { Textarea } from "@/components/ui/textarea";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
 
+// Type definitions for better TypeScript support
+type UploadedImage = {
+  id: string;
+  src: string;
+  name: string;
+  date: Date;
+};
+
+type UploadedDocument = {
+  id: string;
+  name: string;
+  type: string;
+  date: Date;
+};
+
+type SourceType = "all" | "images" | "documents";
+type ActiveTab = "sources" | "chat" | "studio";
+
 export default function Case() {
   const { caseId } = useParams();
   const [caseName, setCaseName] = useState(`Case #${caseId?.replace("case-", "")}`);
   const [description, setDescription] = useState("");
-  const [uploadedImages, setUploadedImages] = useState<{ id: string, src: string, name: string, date: Date }[]>([]);
-  const [uploadedDocs, setUploadedDocs] = useState<{ id: string, name: string, type: string, date: Date }[]>([]);
-  const [activeTab, setActiveTab] = useState<"sources" | "chat" | "studio">("sources");
+  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
+  const [uploadedDocs, setUploadedDocs] = useState<UploadedDocument[]>([]);
+  const [activeTab, setActiveTab] = useState<ActiveTab>("sources");
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
-  const [sourceType, setSourceType] = useState<"all" | "images" | "documents">("all");
+  const [sourceType, setSourceType] = useState<SourceType>("all");
   const [isUploading, setIsUploading] = useState(false);
+  // Add state for selected image
+  const [selectedImage, setSelectedImage] = useState<UploadedImage | null>(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
   const { toast } = useToast();
 
   // Handle file upload with proper error handling and file type validation
@@ -71,8 +96,8 @@ export default function Case() {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
     
     try {
-      const newImages: { id: string, src: string, name: string, date: Date }[] = [];
-      const newDocs: { id: string, name: string, type: string, date: Date }[] = [];
+      const newImages: UploadedImage[] = [];
+      const newDocs: UploadedDocument[] = [];
       
       // Process each file based on type
       for (const file of Array.from(files)) {
@@ -160,6 +185,11 @@ export default function Case() {
   const handleDeleteImage = (id: string) => {
     setUploadedImages(prev => prev.filter(img => img.id !== id));
     
+    // If the deleted image is currently selected, clear the selection
+    if (selectedImage && selectedImage.id === id) {
+      setSelectedImage(null);
+    }
+    
     toast({
       title: "Image Deleted",
       description: "The image has been removed from your case.",
@@ -173,6 +203,27 @@ export default function Case() {
       title: "Document Deleted",
       description: "The document has been removed from your case.",
     });
+  };
+
+  // Handle image selection
+  const handleSelectImage = (image: UploadedImage) => {
+    setSelectedImage(image);
+    // Switch to chat tab to show the image
+    setActiveTab("chat");
+    setZoomLevel(1); // Reset zoom level when selecting a new image
+  };
+
+  // Handle zoom in/out
+  const handleZoomIn = () => {
+    setZoomLevel(prev => Math.min(prev + 0.25, 3));
+  };
+
+  const handleZoomOut = () => {
+    setZoomLevel(prev => Math.max(prev - 0.25, 0.5));
+  };
+
+  const handleResetZoom = () => {
+    setZoomLevel(1);
   };
 
   const analyzeEvidence = () => {
@@ -214,13 +265,13 @@ export default function Case() {
     }));
     
     // For "all", combine both types
-    const images = uploadedImages.map(img => ({ ...img, type: "image" }));
+    const images = uploadedImages.map(img => ({ ...img, type: "image" as const }));
     const docs = uploadedDocs.map(doc => ({ 
       id: doc.id, 
       src: "", 
       name: doc.name, 
       date: doc.date, 
-      type: "document" 
+      type: "document" as const
     }));
     
     // Sort combined sources by date (newest first)
@@ -244,6 +295,11 @@ export default function Case() {
       description: "Your notes have been saved successfully.",
     });
     form.reset();
+  };
+
+  // Close the image preview
+  const closeImagePreview = () => {
+    setSelectedImage(null);
   };
 
   return (
@@ -361,7 +417,8 @@ export default function Case() {
                 return (
                   <div 
                     key={item.id} 
-                    className="relative group rounded-md border overflow-hidden flex items-center p-2 hover:bg-accent cursor-pointer"
+                    className={`relative group rounded-md border overflow-hidden flex items-center p-2 hover:bg-accent cursor-pointer ${selectedImage && selectedImage.id === item.id ? 'bg-accent' : ''}`}
+                    onClick={() => !isDocument && handleSelectImage(item as UploadedImage)}
                   >
                     <div className="h-12 w-12 rounded overflow-hidden mr-3 flex-shrink-0 bg-muted flex items-center justify-center">
                       {isDocument ? (
@@ -446,8 +503,38 @@ export default function Case() {
             <h2 className="font-semibold">Chat</h2>
           </div>
           
-          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-muted-foreground">
-            {getTotalSourceCount() === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-muted-foreground overflow-auto">
+            {selectedImage ? (
+              <div className="w-full h-full flex flex-col">
+                <div className="border-b pb-2 mb-4 flex justify-between items-center">
+                  <h3 className="font-medium">{selectedImage.name}</h3>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="icon" onClick={handleZoomIn} title="Zoom In">
+                      <ZoomIn className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={handleZoomOut} title="Zoom Out">
+                      <ZoomOut className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={handleResetZoom} title="Reset Zoom">
+                      <RotateCcw className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={closeImagePreview} title="Close">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-auto flex items-center justify-center">
+                  <div className="overflow-auto max-w-full max-h-full">
+                    <img 
+                      src={selectedImage.src} 
+                      alt={selectedImage.name} 
+                      className="object-contain transition-transform"
+                      style={{ transform: `scale(${zoomLevel})` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : getTotalSourceCount() === 0 ? (
               <>
                 <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-4">
                   <UploadCloud className="w-6 h-6 text-primary" />
