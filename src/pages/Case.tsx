@@ -56,6 +56,7 @@ type UploadedImage = {
   src: string;
   name: string;
   date: Date;
+  type?: "image"; // Add optional type property
 };
 
 type UploadedDocument = {
@@ -261,7 +262,8 @@ export default function Case() {
       id: doc.id,
       src: "", // No image source for docs
       name: doc.name,
-      date: doc.date
+      date: doc.date,
+      type: "document" as const
     }));
     
     // For "all", combine both types
