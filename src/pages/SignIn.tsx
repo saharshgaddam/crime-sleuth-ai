@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -38,9 +37,9 @@ export default function SignIn() {
     try {
       setIsGoogleLoading(true);
       await loginWithGoogle();
+      // Note: We don't navigate here as the OAuth flow will handle the redirect
     } catch (error: any) {
       toast.error(error.message || "Unable to sign in with Google. Please try again.");
-    } finally {
       setIsGoogleLoading(false);
     }
   };

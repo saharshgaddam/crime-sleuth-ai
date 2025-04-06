@@ -34,9 +34,9 @@ const OAuthCallback = () => {
           .from('profiles')
           .select('*')
           .eq('id', data.session.user.id)
-          .single();
+          .maybeSingle();
           
-        if (profileError && profileError.code !== 'PGRST116') { // PGRST116 is "not found"
+        if (profileError) {
           console.error('Error fetching user profile', profileError);
         }
         
@@ -47,7 +47,7 @@ const OAuthCallback = () => {
             .from('profiles')
             .insert([{
               id: data.session.user.id,
-              name: data.session.user.user_metadata.name || data.session.user.email?.split('@')[0] || '',
+              name: data.session.user.user_metadata.name || data.session.user.user_metadata.full_name || data.session.user.email?.split('@')[0] || '',
               email: data.session.user.email,
               role: 'investigator' // Default role
             }]);

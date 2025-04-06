@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from "sonner";
@@ -35,24 +34,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   
-  // Initialize auth state
   useEffect(() => {
-    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, newSession) => {
         console.log("Auth state changed:", event);
         setSession(newSession);
         
         if (newSession?.user) {
-          // Set user state first with minimal info
           setUser({
             _id: newSession.user.id,
-            name: newSession.user.user_metadata.name || newSession.user.email?.split('@')[0] || '',
+            name: newSession.user.user_metadata.name || newSession.user.user_metadata.full_name || newSession.user.email?.split('@')[0] || '',
             email: newSession.user.email || '',
             role: newSession.user.user_metadata.role || 'investigator'
           });
           
-          // Then fetch complete profile
           setTimeout(() => fetchUserProfile(newSession.user), 0);
         } else {
           setUser(null);
@@ -60,20 +55,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
-    // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
       setSession(initialSession);
       
       if (initialSession?.user) {
-        // Set user state first with minimal info
         setUser({
           _id: initialSession.user.id,
-          name: initialSession.user.user_metadata.name || initialSession.user.email?.split('@')[0] || '',
+          name: initialSession.user.user_metadata.name || initialSession.user.user_metadata.full_name || initialSession.user.email?.split('@')[0] || '',
           email: initialSession.user.email || '',
           role: initialSession.user.user_metadata.role || 'investigator'
         });
         
-        // Then fetch complete profile
         setTimeout(() => fetchUserProfile(initialSession.user), 0);
       }
       
@@ -91,7 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from('profiles')
         .select('*')
         .eq('id', supabaseUser.id)
-        .single();
+        .maybeSingle();
       
       if (error) {
         console.error("Error fetching user profile:", error);
@@ -101,7 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (data) {
         setUser({
           _id: supabaseUser.id,
-          name: data.name || supabaseUser.email?.split('@')[0] || '',
+          name: data.name || supabaseUser.user_metadata.name || supabaseUser.user_metadata.full_name || supabaseUser.email?.split('@')[0] || '',
           email: data.email || supabaseUser.email || '',
           role: data.role || 'investigator'
         });
@@ -204,7 +196,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error('User not authenticated');
       }
       
-      // Update user metadata in auth
       const { error: authUpdateError } = await supabase.auth.updateUser({
         data: {
           name: userData.name,
@@ -214,7 +205,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (authUpdateError) throw new Error(authUpdateError.message);
       
-      // Update profile in profiles table
       const { error: profileUpdateError } = await supabase
         .from('profiles')
         .update({
@@ -225,7 +215,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (profileUpdateError) throw new Error(profileUpdateError.message);
       
-      // Update local state
       setUser({
         ...user,
         ...userData
