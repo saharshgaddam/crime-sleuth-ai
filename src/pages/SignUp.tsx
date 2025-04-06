@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -9,6 +8,7 @@ import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "../context/AuthContext";
+import { isSupabaseConfigured } from "../lib/supabase";
 import { 
   Form,
   FormControl,
@@ -52,7 +52,7 @@ export default function SignUp() {
       setIsLoading(true);
       
       // Use Supabase registration if configured
-      if (import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY) {
+      if (isSupabaseConfigured()) {
         await registerWithSupabase(data.email, data.password, data.name, data.role);
       } else {
         // Fall back to original registration
@@ -75,7 +75,7 @@ export default function SignUp() {
       setIsGoogleLoading(true);
       
       // Use Supabase for Google sign-in if configured
-      if (import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY) {
+      if (isSupabaseConfigured()) {
         await loginWithGoogle();
       } else {
         // Google sign-in will be handled by the backend

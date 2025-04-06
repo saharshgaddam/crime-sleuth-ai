@@ -1,9 +1,8 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/api';
 import { toast } from "sonner";
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 interface User {
   _id: string;
@@ -35,18 +34,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   
-  // Check if user is already logged in
   useEffect(() => {
     const storedUser = authService.getCurrentUser();
     if (storedUser) {
       setUser(storedUser);
     }
     
-    // Also check Supabase session
     const checkSupabaseSession = async () => {
       const { data } = await supabase.auth.getSession();
       if (data.session) {
-        // Get user profile from Supabase
         const { data: profileData } = await supabase
           .from('profiles')
           .select('*')
@@ -64,15 +60,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
     
-    // Only check Supabase if we have credentials
-    if (import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY) {
+    if (isSupabaseConfigured()) {
       checkSupabaseSession();
     }
     
     setLoading(false);
   }, []);
 
-  // Original login method using Express backend
   const login = async (email: string, password: string) => {
     try {
       setLoading(true);
@@ -89,8 +83,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Supabase login method
   const loginWithSupabase = async (email: string, password: string) => {
+    if (!isSupabaseConfigured()) {
+      toast.error("Supabase is not configured. Please connect to Supabase first.");
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -103,7 +101,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) throw new Error(error.message);
       
       if (data.user) {
-        // Get user profile
         const { data: profileData } = await supabase
           .from('profiles')
           .select('*')
@@ -129,9 +126,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     }
   };
-  
-  // Login with Google via Supabase
+
   const loginWithGoogle = async () => {
+    if (!isSupabaseConfigured()) {
+      toast.error("Supabase is not configured. Please connect to Supabase first.");
+      return;
+    }
+
     try {
       setLoading(true);
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -143,7 +144,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error) throw new Error(error.message);
       
-      // No need to set user here as the OAuth callback will handle it
     } catch (err: any) {
       setError(err.message || 'Failed to login with Google');
       toast.error(err.message || 'Failed to login with Google');
@@ -153,7 +153,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Original register method using Express backend
   const register = async (name: string, email: string, password: string, role: string = 'investigator') => {
     try {
       setLoading(true);
@@ -169,14 +168,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     }
   };
-  
-  // Supabase register method
+
   const registerWithSupabase = async (email: string, password: string, name: string, role: string = 'investigator') => {
+    if (!isSupabaseConfigured()) {
+      toast.error("Supabase is not configured. Please connect to Supabase first.");
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
       
-      // Register the user
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -191,7 +193,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) throw new Error(error.message);
       
       if (data.user) {
-        // Create profile entry
         const { error: profileError } = await supabase
           .from('profiles')
           .insert([{ 
@@ -223,10 +224,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Original logout method
   const logout = async () => {
     try {
-      // Logout from both systems
       authService.logout();
       
       if (import.meta.env.VITE_SUPABASE_URL) {
@@ -242,15 +241,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Original update profile method
   const updateProfile = async (userData: Partial<User>) => {
     try {
       setLoading(true);
       
-      // Update in Express backend
       const response = await authService.updateProfile(userData);
       
-      // If using Supabase, also update there
       if (import.meta.env.VITE_SUPABASE_URL && user?._id) {
         await supabase
           .from('profiles')
@@ -271,20 +267,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Original change password method
   const changePassword = async (currentPassword: string, newPassword: string) => {
     try {
       setLoading(true);
       
       if (import.meta.env.VITE_SUPABASE_URL) {
-        // Update password via Supabase
         const { error } = await supabase.auth.updateUser({
           password: newPassword
         });
         
         if (error) throw new Error(error.message);
       } else {
-        // Update via Express backend
         await authService.changePassword({ currentPassword, newPassword });
       }
       

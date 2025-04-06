@@ -9,6 +9,7 @@ import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "../context/AuthContext";
+import { isSupabaseConfigured } from "../lib/supabase";
 
 export default function SignIn() {
   const [email, setEmail] = useState("");
@@ -25,7 +26,7 @@ export default function SignIn() {
     
     try {
       // Try Supabase login first if configured
-      if (import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY) {
+      if (isSupabaseConfigured()) {
         await loginWithSupabase(email, password);
       } else {
         // Fall back to original login
@@ -48,7 +49,7 @@ export default function SignIn() {
       setIsGoogleLoading(true);
       
       // Use Supabase for Google sign-in if configured
-      if (import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY) {
+      if (isSupabaseConfigured()) {
         loginWithGoogle()
           .catch(error => {
             toast({
