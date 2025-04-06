@@ -17,14 +17,20 @@ export default function SignIn() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { login } = useAuth();
+  const { login, loginWithSupabase, loginWithGoogle } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
     try {
-      await login(email, password);
+      // Try Supabase login first if configured
+      if (import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY) {
+        await loginWithSupabase(email, password);
+      } else {
+        // Fall back to original login
+        await login(email, password);
+      }
       // Navigation happens in auth context after successful login
     } catch (error: any) {
       toast({
@@ -40,9 +46,23 @@ export default function SignIn() {
   const handleGoogleSignIn = () => {
     try {
       setIsGoogleLoading(true);
-      // Redirect to Google OAuth endpoint
-      window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/google`;
-    } catch (error) {
+      
+      // Use Supabase for Google sign-in if configured
+      if (import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY) {
+        loginWithGoogle()
+          .catch(error => {
+            toast({
+              title: "Google Sign-in failed",
+              description: error.message || "Unable to sign in with Google. Please try again.",
+              variant: "destructive",
+            });
+          })
+          .finally(() => setIsGoogleLoading(false));
+      } else {
+        // Fallback to original Google OAuth endpoint
+        window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/google`;
+      }
+    } catch (error: any) {
       toast({
         title: "Google Sign-in failed",
         description: "Unable to sign in with Google. Please try again.",

@@ -35,7 +35,7 @@ export default function SignUp() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { register: authRegister } = useAuth();
+  const { register: authRegister, registerWithSupabase, loginWithGoogle } = useAuth();
   
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
@@ -50,7 +50,14 @@ export default function SignUp() {
   async function onSubmit(data: SignupFormValues) {
     try {
       setIsLoading(true);
-      await authRegister(data.name, data.email, data.password, data.role);
+      
+      // Use Supabase registration if configured
+      if (import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY) {
+        await registerWithSupabase(data.email, data.password, data.name, data.role);
+      } else {
+        // Fall back to original registration
+        await authRegister(data.name, data.email, data.password, data.role);
+      }
       // Navigate happens in the auth context after successful registration
     } catch (error: any) {
       toast({
@@ -66,14 +73,21 @@ export default function SignUp() {
   const handleGoogleSignIn = async () => {
     try {
       setIsGoogleLoading(true);
-      // Google sign-in will be handled by the backend
-      window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/google`;
-    } catch (error) {
+      
+      // Use Supabase for Google sign-in if configured
+      if (import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY) {
+        await loginWithGoogle();
+      } else {
+        // Google sign-in will be handled by the backend
+        window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/google`;
+      }
+    } catch (error: any) {
       toast({
         title: "Google Sign-in failed",
-        description: "Unable to sign in with Google. Please try again.",
+        description: error.message || "Unable to sign in with Google. Please try again.",
         variant: "destructive",
       });
+    } finally {
       setIsGoogleLoading(false);
     }
   };
