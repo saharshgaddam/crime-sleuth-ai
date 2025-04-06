@@ -7,9 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Fingerprint, ArrowLeft, Mail, Lock, Loader2 } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
-import { isSupabaseConfigured } from "../lib/supabase";
+import { supabase } from "../lib/supabase";
 
 export default function SignIn() {
   const [email, setEmail] = useState("");
@@ -17,58 +17,30 @@ export default function SignIn() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const { login, loginWithSupabase, loginWithGoogle } = useAuth();
+  const { loginWithSupabase, loginWithGoogle } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
     try {
-      // Try Supabase login first if configured
-      if (isSupabaseConfigured()) {
-        await loginWithSupabase(email, password);
-      } else {
-        // Fall back to original login
-        await login(email, password);
-      }
+      // Always use Supabase authentication
+      await loginWithSupabase(email, password);
       // Navigation happens in auth context after successful login
     } catch (error: any) {
-      toast({
-        title: "Authentication failed",
-        description: error.message || "Please check your credentials and try again.",
-        variant: "destructive",
-      });
+      toast.error(error.message || "Please check your credentials and try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleGoogleSignIn = () => {
+  const handleGoogleSignIn = async () => {
     try {
       setIsGoogleLoading(true);
-      
-      // Use Supabase for Google sign-in if configured
-      if (isSupabaseConfigured()) {
-        loginWithGoogle()
-          .catch(error => {
-            toast({
-              title: "Google Sign-in failed",
-              description: error.message || "Unable to sign in with Google. Please try again.",
-              variant: "destructive",
-            });
-          })
-          .finally(() => setIsGoogleLoading(false));
-      } else {
-        // Fallback to original Google OAuth endpoint
-        window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/google`;
-      }
+      await loginWithGoogle();
     } catch (error: any) {
-      toast({
-        title: "Google Sign-in failed",
-        description: "Unable to sign in with Google. Please try again.",
-        variant: "destructive",
-      });
+      toast.error(error.message || "Unable to sign in with Google. Please try again.");
+    } finally {
       setIsGoogleLoading(false);
     }
   };

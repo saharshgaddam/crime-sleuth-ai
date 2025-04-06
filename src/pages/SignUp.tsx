@@ -1,14 +1,14 @@
+
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Fingerprint, ArrowLeft, User, Mail, Lock, FileText, AlertCircle, Loader2 } from "lucide-react";
+import { Fingerprint, ArrowLeft, User, Mail, Lock, Loader2 } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
-import { isSupabaseConfigured } from "../lib/supabase";
 import { 
   Form,
   FormControl,
@@ -34,8 +34,7 @@ export default function SignUp() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const { register: authRegister, registerWithSupabase, loginWithGoogle } = useAuth();
+  const { registerWithSupabase, loginWithGoogle } = useAuth();
   
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
@@ -50,21 +49,10 @@ export default function SignUp() {
   async function onSubmit(data: SignupFormValues) {
     try {
       setIsLoading(true);
-      
-      // Use Supabase registration if configured
-      if (isSupabaseConfigured()) {
-        await registerWithSupabase(data.email, data.password, data.name, data.role);
-      } else {
-        // Fall back to original registration
-        await authRegister(data.name, data.email, data.password, data.role);
-      }
+      await registerWithSupabase(data.email, data.password, data.name, data.role);
       // Navigate happens in the auth context after successful registration
     } catch (error: any) {
-      toast({
-        title: "Registration failed",
-        description: error.message || "Please check your details and try again.",
-        variant: "destructive",
-      });
+      toast.error(error.message || "Please check your details and try again.");
     } finally {
       setIsLoading(false);
     }
@@ -73,20 +61,9 @@ export default function SignUp() {
   const handleGoogleSignIn = async () => {
     try {
       setIsGoogleLoading(true);
-      
-      // Use Supabase for Google sign-in if configured
-      if (isSupabaseConfigured()) {
-        await loginWithGoogle();
-      } else {
-        // Google sign-in will be handled by the backend
-        window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/google`;
-      }
+      await loginWithGoogle();
     } catch (error: any) {
-      toast({
-        title: "Google Sign-in failed",
-        description: error.message || "Unable to sign in with Google. Please try again.",
-        variant: "destructive",
-      });
+      toast.error(error.message || "Unable to sign in with Google. Please try again.");
     } finally {
       setIsGoogleLoading(false);
     }

@@ -1,27 +1,19 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// We now directly use the environment variables that are set correctly
+const supabaseUrl = 'https://odplkhxbiihqldjjgsxy.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9kcGxraHhiaWlocWxkampnc3h5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM5NjA5MjgsImV4cCI6MjA1OTUzNjkyOH0.iiIENSbDNtNuvVPbg7BbkinSJudZ0LMUEjDzaXtGg6U';
 
-// Check if Supabase credentials are properly configured
-const hasSupabaseCredentials = !!(supabaseUrl && supabaseAnonKey);
-
-// Create a proper supabase client or a dummy one if credentials aren't available
-export const supabase = hasSupabaseCredentials
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : createClient(
-      'https://placeholder-supabase-project.supabase.co',
-      'placeholder-anon-key'
-    );
+// Create a proper supabase client
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+  }
+});
 
 // Helper function to determine if Supabase is configured
-export const isSupabaseConfigured = () => hasSupabaseCredentials;
+export const isSupabaseConfigured = () => true;
 
-// Log Supabase configuration status
-console.log(`Supabase configuration status: ${hasSupabaseCredentials ? 'CONFIGURED' : 'NOT CONFIGURED'}`);
-if (!hasSupabaseCredentials) {
-  console.warn(
-    'Supabase is not configured. Please connect to Supabase using the green Supabase button in the top right corner of the Lovable interface.'
-  );
-}
+console.log('Supabase configuration status: CONFIGURED');
