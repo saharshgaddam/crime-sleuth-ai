@@ -14,16 +14,21 @@ const OAuthCallback = () => {
   // Function to handle Supabase OAuth callback
   const handleSupabaseCallback = async () => {
     try {
+      console.log('Processing Supabase OAuth callback...');
+      
       // Get the session from the URL hash params
       const { data, error } = await supabase.auth.getSession();
       
       if (error) {
+        console.error('Supabase session error:', error);
         toast.error(error.message);
         navigate('/signin');
         return;
       }
       
       if (data.session) {
+        console.log('Supabase session found:', data.session.user.id);
+        
         // Fetch user profile from Supabase
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
@@ -37,6 +42,7 @@ const OAuthCallback = () => {
         
         // If profile doesn't exist, create it
         if (!profileData) {
+          console.log('Creating new user profile...');
           const { error: insertError } = await supabase
             .from('profiles')
             .insert([{
@@ -48,12 +54,14 @@ const OAuthCallback = () => {
             
           if (insertError) {
             console.error('Error creating user profile', insertError);
+            toast.error('Failed to create user profile');
           }
         }
         
         toast.success('Successfully signed in with Google');
         navigate('/dashboard');
       } else {
+        console.error('No Supabase session found');
         toast.error('No session found');
         navigate('/signin');
       }
@@ -65,22 +73,29 @@ const OAuthCallback = () => {
   };
 
   useEffect(() => {
+    console.log('OAuthCallback component mounted');
+    console.log('Supabase configured:', isSupabaseConfigured());
+    console.log('URL hash:', window.location.hash);
+    
     // First check if we're in a Supabase OAuth flow
     const isSupabaseOAuth = window.location.hash && window.location.hash.includes('access_token');
     
     if (isSupabaseOAuth && isSupabaseConfigured()) {
+      console.log('Detected Supabase OAuth flow');
       handleSupabaseCallback();
       return;
     }
     
     // If not Supabase, use the traditional OAuth flow
     if (error) {
+      console.error('OAuth error:', error);
       toast.error(error);
       navigate('/signin');
       return;
     }
 
     if (token) {
+      console.log('Traditional OAuth token found');
       // Store the token and user data
       localStorage.setItem('token', token);
       
@@ -99,6 +114,7 @@ const OAuthCallback = () => {
       
       fetchUserData();
     } else if (!isSupabaseOAuth) {
+      console.error('No authentication token received');
       toast.error('No authentication token received');
       navigate('/signin');
     }
