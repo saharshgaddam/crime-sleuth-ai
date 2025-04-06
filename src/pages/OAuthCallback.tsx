@@ -2,7 +2,6 @@
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
 import { toast } from "sonner";
 
 const OAuthCallback = () => {
@@ -25,8 +24,7 @@ const OAuthCallback = () => {
       // Get user data
       const fetchUserData = async () => {
         try {
-          // Normally we would fetch user data here with the token
-          // But for simplicity, we'll just redirect to dashboard
+          // You can add a call to get user profile here if needed
           toast.success('Successfully signed in with Google');
           navigate('/dashboard');
         } catch (err) {
