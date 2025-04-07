@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
@@ -31,6 +30,7 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCcw,
+  BrainCircuit,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,8 +49,9 @@ import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
+import { Card, CardContent } from "@/components/ui/card";
+import axios from "axios";
 
-// Type definitions for better TypeScript support
 type UploadedImage = {
   id: string;
   src: string;
@@ -69,6 +70,10 @@ type UploadedDocument = {
 type SourceType = "all" | "images" | "documents";
 type ActiveTab = "sources" | "chat" | "studio";
 
+type SummaryResponse = {
+  summary: string;
+};
+
 export default function Case() {
   const { caseId } = useParams();
   const [caseName, setCaseName] = useState(`Case #${caseId?.replace("case-", "")}`);
@@ -80,12 +85,12 @@ export default function Case() {
   const [analyzing, setAnalyzing] = useState(false);
   const [sourceType, setSourceType] = useState<SourceType>("all");
   const [isUploading, setIsUploading] = useState(false);
-  // Add state for selected image
   const [selectedImage, setSelectedImage] = useState<UploadedImage | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [isSummarizing, setIsSummarizing] = useState(false);
   const { toast } = useToast();
 
-  // Handle file upload with proper error handling and file type validation
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -100,10 +105,8 @@ export default function Case() {
       const newImages: UploadedImage[] = [];
       const newDocs: UploadedDocument[] = [];
       
-      // Process each file based on type
       for (const file of Array.from(files)) {
         if (imageTypes.includes(file.type)) {
-          // Process images
           const result = await readFileAsDataURL(file);
           newImages.push({
             id: generateId(),
@@ -112,7 +115,6 @@ export default function Case() {
             date: new Date()
           });
         } else if (docTypes.includes(file.type)) {
-          // Process documents
           newDocs.push({
             id: generateId(),
             name: file.name,
@@ -122,7 +124,6 @@ export default function Case() {
         }
       }
       
-      // Update the state with new files
       if (newImages.length > 0) {
         setUploadedImages(prev => [...prev, ...newImages]);
       }
@@ -131,7 +132,6 @@ export default function Case() {
         setUploadedDocs(prev => [...prev, ...newDocs]);
       }
       
-      // Show success toast
       const totalFiles = newImages.length + newDocs.length;
       if (totalFiles > 0) {
         toast({
@@ -155,14 +155,12 @@ export default function Case() {
     } finally {
       setIsUploading(false);
       
-      // Reset the file input
       if (e.target) {
         e.target.value = '';
       }
     }
   };
 
-  // Helper function to read file as data URL
   const readFileAsDataURL = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -178,7 +176,6 @@ export default function Case() {
     });
   };
 
-  // Generate a unique ID for files
   const generateId = () => {
     return Date.now().toString(36) + Math.random().toString(36).substring(2);
   };
@@ -186,7 +183,6 @@ export default function Case() {
   const handleDeleteImage = (id: string) => {
     setUploadedImages(prev => prev.filter(img => img.id !== id));
     
-    // If the deleted image is currently selected, clear the selection
     if (selectedImage && selectedImage.id === id) {
       setSelectedImage(null);
     }
@@ -206,15 +202,12 @@ export default function Case() {
     });
   };
 
-  // Handle image selection
   const handleSelectImage = (image: UploadedImage) => {
     setSelectedImage(image);
-    // Switch to chat tab to show the image
     setActiveTab("chat");
-    setZoomLevel(1); // Reset zoom level when selecting a new image
+    setZoomLevel(1);
   };
 
-  // Handle zoom in/out
   const handleZoomIn = () => {
     setZoomLevel(prev => Math.min(prev + 0.25, 3));
   };
@@ -225,6 +218,51 @@ export default function Case() {
 
   const handleResetZoom = () => {
     setZoomLevel(1);
+  };
+
+  const generateSummary = async () => {
+    if (!selectedImage) return;
+    
+    setIsSummarizing(true);
+    setSummary(null);
+    
+    try {
+      const formData = new FormData();
+      
+      const base64Response = await fetch(selectedImage.src);
+      const blob = await base64Response.blob();
+      
+      formData.append('image', blob, selectedImage.name);
+      formData.append('caseId', caseId || '');
+      formData.append('imageId', selectedImage.id);
+      
+      const response = await axios.post<SummaryResponse>(
+        'http://your-flask-api-url/summarize', 
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+      
+      setSummary(response.data.summary);
+      
+      toast({
+        title: "Summary Generated",
+        description: "The image has been successfully analyzed.",
+      });
+    } catch (error) {
+      console.error("Error generating summary:", error);
+      toast({
+        title: "Summary Failed",
+        description: "There was a problem analyzing this image.",
+        variant: "destructive"
+      });
+      setSummary("Failed to generate summary. Please try again.");
+    } finally {
+      setIsSummarizing(false);
+    }
   };
 
   const analyzeEvidence = () => {
@@ -244,7 +282,6 @@ export default function Case() {
       description: "Your evidence is being analyzed. This may take a moment.",
     });
     
-    // Simulate analysis time
     setTimeout(() => {
       setActiveTab("studio");
       setAnalyzing(false);
@@ -255,18 +292,16 @@ export default function Case() {
     }, 2000);
   };
 
-  // Filter sources based on selected type
   const filteredSources = () => {
     if (sourceType === "images") return uploadedImages;
     if (sourceType === "documents") return uploadedDocs.map(doc => ({
       id: doc.id,
-      src: "", // No image source for docs
+      src: "",
       name: doc.name,
       date: doc.date,
       type: "document" as const
     }));
     
-    // For "all", combine both types
     const images = uploadedImages.map(img => ({ ...img, type: "image" as const }));
     const docs = uploadedDocs.map(doc => ({ 
       id: doc.id, 
@@ -276,11 +311,9 @@ export default function Case() {
       type: "document" as const
     }));
     
-    // Sort combined sources by date (newest first)
     return [...images, ...docs].sort((a, b) => b.date.getTime() - a.date.getTime());
   };
 
-  // Get total count of all sources
   const getTotalSourceCount = () => {
     return uploadedImages.length + uploadedDocs.length;
   };
@@ -299,14 +332,13 @@ export default function Case() {
     form.reset();
   };
 
-  // Close the image preview
   const closeImagePreview = () => {
     setSelectedImage(null);
+    setSummary(null);
   };
 
   return (
     <div className="flex flex-col h-screen bg-background">
-      {/* Header */}
       <header className="flex items-center justify-between p-4 border-b">
         <div className="flex items-center gap-4">
           <Link to="/dashboard">
@@ -332,9 +364,7 @@ export default function Case() {
         </div>
       </header>
 
-      {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Sources Panel */}
         <div className={`w-96 border-r overflow-y-auto flex flex-col ${activeTab === "sources" ? "block" : "hidden md:block"}`}>
           <div className="flex items-center justify-between p-4 border-b">
             <h2 className="font-semibold">Sources</h2>
@@ -480,7 +510,6 @@ export default function Case() {
             </div>
           )}
           
-          {/* Upload button at the bottom */}
           <div className="mt-auto p-4 border-t">
             <div className="flex items-center bg-muted/80 rounded-lg p-3">
               <div className="flex-1">
@@ -499,13 +528,12 @@ export default function Case() {
           </div>
         </div>
 
-        {/* Chat/Middle Panel */}
         <div className={`flex-1 flex flex-col ${activeTab === "chat" ? "block" : "hidden md:block"}`}>
           <div className="flex items-center justify-between p-4 border-b">
             <h2 className="font-semibold">Chat</h2>
           </div>
           
-          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-muted-foreground overflow-auto">
+          <div className="flex-1 flex flex-col p-4 overflow-auto">
             {selectedImage ? (
               <div className="w-full h-full flex flex-col">
                 <div className="border-b pb-2 mb-4 flex justify-between items-center">
@@ -525,7 +553,8 @@ export default function Case() {
                     </Button>
                   </div>
                 </div>
-                <div className="flex-1 overflow-auto flex items-center justify-center">
+                
+                <div className="flex-1 overflow-auto flex items-center justify-center mb-4">
                   <div className="overflow-auto max-w-full max-h-full">
                     <img 
                       src={selectedImage.src} 
@@ -535,9 +564,56 @@ export default function Case() {
                     />
                   </div>
                 </div>
+                
+                <div className="mt-4">
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="font-medium">Image Analysis</h4>
+                    <Button 
+                      onClick={generateSummary} 
+                      disabled={isSummarizing}
+                      className="gap-2"
+                    >
+                      {isSummarizing ? (
+                        <>
+                          <Loader className="h-4 w-4 animate-spin" />
+                          Summarizing...
+                        </>
+                      ) : (
+                        <>
+                          <BrainCircuit className="h-4 w-4" />
+                          Summarize
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  
+                  {summary ? (
+                    <Card className="mb-4">
+                      <CardContent className="pt-6">
+                        <div className="prose prose-sm">
+                          {summary.split('\n').map((paragraph, i) => (
+                            <p key={i} className={i > 0 ? "mt-2" : ""}>{paragraph}</p>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ) : isSummarizing ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
+                      <Loader className="h-8 w-8 animate-spin mb-3" />
+                      <p>Generating detailed summary...</p>
+                      <p className="text-xs mt-1">This may take a moment</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground border border-dashed rounded-lg">
+                      <BrainCircuit className="h-8 w-8 mb-3" />
+                      <p>Generate an AI-powered summary of this image</p>
+                      <p className="text-xs mt-1">Click the Summarize button above to analyze this evidence</p>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : getTotalSourceCount() === 0 ? (
-              <>
+              <div className="flex flex-col items-center justify-center h-full">
                 <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-4">
                   <UploadCloud className="w-6 h-6 text-primary" />
                 </div>
@@ -561,9 +637,9 @@ export default function Case() {
                     </span>
                   </Button>
                 </label>
-              </>
+              </div>
             ) : (
-              <>
+              <div className="flex flex-col items-center justify-center h-full">
                 <MessageSquare className="w-12 h-12 text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium">Ask questions about your evidence</h3>
                 <p className="text-sm mt-2 max-w-md">
@@ -587,12 +663,11 @@ export default function Case() {
                     </>
                   )}
                 </Button>
-              </>
+              </div>
             )}
           </div>
         </div>
 
-        {/* Studio/Tools Panel */}
         <div className={`w-96 border-l overflow-y-auto flex flex-col ${activeTab === "studio" ? "block" : "hidden md:block"}`}>
           <div className="flex items-center justify-between p-4 border-b">
             <h2 className="font-semibold">Studio</h2>
@@ -666,7 +741,6 @@ export default function Case() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-medium">Notes</h3>
-                {/* Fix: Wrap DialogTrigger within Dialog */}
                 <Dialog>
                   <DialogTrigger asChild>
                     <Button variant="ghost" size="sm" className="h-7 gap-1">
@@ -731,8 +805,6 @@ export default function Case() {
                 </Button>
               </div>
 
-              {/* Removed separate DialogTrigger and Dialog components, they're now combined above */}
-              
               <div className="mt-12 flex flex-col items-center justify-center p-6 text-center border rounded-lg">
                 <div className="p-3 bg-muted rounded-lg mb-3">
                   <FileText className="w-8 h-8" />
@@ -747,7 +819,6 @@ export default function Case() {
         </div>
       </div>
 
-      {/* Mobile Navigation */}
       <div className="md:hidden border-t">
         <div className="grid grid-cols-3 divide-x">
           <button
@@ -777,7 +848,6 @@ export default function Case() {
   );
 }
 
-// Component for the Customize button
 function Customize({ className }: { className?: string }) {
   return (
     <svg
