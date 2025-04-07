@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
@@ -50,7 +51,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
 import { Card, CardContent } from "@/components/ui/card";
-import axios from "axios";
+import API, { forensicService } from "@/services/api";
 
 type UploadedImage = {
   id: string;
@@ -71,6 +72,10 @@ type SourceType = "all" | "images" | "documents";
 type ActiveTab = "sources" | "chat" | "studio";
 
 type SummaryResponse = {
+  case_id: string;
+  image_id: string;
+  crime_type: string;
+  objects_detected: string[];
   summary: string;
 };
 
@@ -89,6 +94,8 @@ export default function Case() {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [summary, setSummary] = useState<string | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
+  const [detectedObjects, setDetectedObjects] = useState<string[]>([]);
+  const [crimeType, setCrimeType] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -206,6 +213,9 @@ export default function Case() {
     setSelectedImage(image);
     setActiveTab("chat");
     setZoomLevel(1);
+    setSummary(null); // Reset summary when selecting a new image
+    setDetectedObjects([]);
+    setCrimeType(null);
   };
 
   const handleZoomIn = () => {
@@ -221,32 +231,28 @@ export default function Case() {
   };
 
   const generateSummary = async () => {
-    if (!selectedImage) return;
+    if (!selectedImage || !caseId) return;
     
     setIsSummarizing(true);
     setSummary(null);
+    setDetectedObjects([]);
+    setCrimeType(null);
     
     try {
-      const formData = new FormData();
-      
+      // Convert base64 to blob
       const base64Response = await fetch(selectedImage.src);
       const blob = await base64Response.blob();
       
-      formData.append('image', blob, selectedImage.name);
-      formData.append('caseId', caseId || '');
-      formData.append('imageId', selectedImage.id);
-      
-      const response = await axios.post<SummaryResponse>(
-        'http://your-flask-api-url/summarize', 
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        }
+      // Call the Flask API
+      const response = await forensicService.generateImageSummary(
+        caseId,
+        selectedImage.id,
+        blob
       );
       
-      setSummary(response.data.summary);
+      setSummary(response.summary);
+      setDetectedObjects(response.objects_detected);
+      setCrimeType(response.crime_type);
       
       toast({
         title: "Summary Generated",
@@ -265,6 +271,35 @@ export default function Case() {
     }
   };
 
+  const generateCaseReport = async () => {
+    if (!caseId) return;
+    
+    try {
+      setAnalyzing(true);
+      
+      const response = await forensicService.generateCaseReport(caseId);
+      
+      // Show success message
+      toast({
+        title: "Case Report Generated",
+        description: "Your complete case report has been generated successfully.",
+      });
+      
+      // Here you could store the report or navigate to a report view
+      console.log("Case report:", response.report);
+      
+    } catch (error) {
+      console.error("Error generating case report:", error);
+      toast({
+        title: "Report Generation Failed",
+        description: "There was a problem generating the case report.",
+        variant: "destructive"
+      });
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   const analyzeEvidence = () => {
     const totalSources = uploadedImages.length + uploadedDocs.length;
     if (totalSources === 0) {
@@ -276,20 +311,8 @@ export default function Case() {
       return;
     }
     
-    setAnalyzing(true);
-    toast({
-      title: "Analysis Started",
-      description: "Your evidence is being analyzed. This may take a moment.",
-    });
-    
-    setTimeout(() => {
-      setActiveTab("studio");
-      setAnalyzing(false);
-      toast({
-        title: "Analysis Complete",
-        description: "Your evidence has been analyzed. View the results in the Studio tab.",
-      });
-    }, 2000);
+    // Generate full case report using all summarized images
+    generateCaseReport();
   };
 
   const filteredSources = () => {
@@ -335,6 +358,8 @@ export default function Case() {
   const closeImagePreview = () => {
     setSelectedImage(null);
     setSummary(null);
+    setDetectedObjects([]);
+    setCrimeType(null);
   };
 
   return (
@@ -496,12 +521,12 @@ export default function Case() {
                     {analyzing ? (
                       <>
                         <Loader className="h-4 w-4 mr-2 animate-spin" />
-                        Analyzing...
+                        Generating Case Report...
                       </>
                     ) : (
                       <>
                         <Microscope className="h-4 w-4 mr-2" />
-                        Analyze Evidence
+                        Generate Case Report
                       </>
                     )}
                   </Button>
@@ -590,6 +615,30 @@ export default function Case() {
                   {summary ? (
                     <Card className="mb-4">
                       <CardContent className="pt-6">
+                        {crimeType && (
+                          <div className="mb-4">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              Crime Type: {crimeType}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {detectedObjects.length > 0 && (
+                          <div className="mb-4">
+                            <h5 className="text-sm font-medium mb-2">Objects Detected:</h5>
+                            <div className="flex flex-wrap gap-1">
+                              {detectedObjects.map((object, index) => (
+                                <span 
+                                  key={index}
+                                  className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-muted"
+                                >
+                                  {object}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
                         <div className="prose prose-sm">
                           {summary.split('\n').map((paragraph, i) => (
                             <p key={i} className={i > 0 ? "mt-2" : ""}>{paragraph}</p>
@@ -643,7 +692,7 @@ export default function Case() {
                 <MessageSquare className="w-12 h-12 text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium">Ask questions about your evidence</h3>
                 <p className="text-sm mt-2 max-w-md">
-                  Your evidence has been uploaded. Click "Analyze Evidence" to generate insights or ask specific questions.
+                  Your evidence has been uploaded. Select an image to analyze it, or generate a full case report.
                 </p>
                 
                 <Button
@@ -654,12 +703,12 @@ export default function Case() {
                   {analyzing ? (
                     <>
                       <Loader className="h-4 w-4 mr-2 animate-spin" />
-                      Analyzing...
+                      Generating Report...
                     </>
                   ) : (
                     <>
                       <Microscope className="h-4 w-4 mr-2" />
-                      Analyze Evidence
+                      Generate Case Report
                     </>
                   )}
                 </Button>
@@ -705,7 +754,7 @@ export default function Case() {
                     <Customize className="w-4 h-4 mr-2" />
                     Customize
                   </Button>
-                  <Button className="justify-start" size="sm">
+                  <Button className="justify-start" size="sm" onClick={analyzeEvidence} disabled={analyzing}>
                     <BarChart3 className="w-4 h-4 mr-2" />
                     Generate
                   </Button>

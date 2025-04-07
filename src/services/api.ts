@@ -3,6 +3,7 @@ import axios from 'axios';
 import { toast } from "sonner";
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const FLASK_API_URL = 'http://localhost:8000'; // Add Flask API URL
 
 // Create axios instance
 const api = axios.create({
@@ -50,6 +51,37 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// Forensic Flask API services
+export const forensicService = {
+  // Generate summary for an image
+  generateImageSummary: async (caseId: string, imageId: string, imageFile: File | Blob) => {
+    const formData = new FormData();
+    formData.append('case_id', caseId);
+    formData.append('image_id', imageId);
+    formData.append('image', imageFile);
+
+    const response = await axios.post(
+      `${FLASK_API_URL}/generate-summary`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    return response.data;
+  },
+  
+  // Generate report for entire case
+  generateCaseReport: async (caseId: string) => {
+    const response = await axios.post(
+      `${FLASK_API_URL}/generate-case-report`,
+      { case_id: caseId }
+    );
+    return response.data;
+  }
+};
 
 // Auth services
 export const authService = {
@@ -172,6 +204,7 @@ const API = {
   cases: caseService,
   evidence: evidenceService,
   users: userService,
+  forensic: forensicService
 };
 
 export default API;
