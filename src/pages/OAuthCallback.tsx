@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { toast } from "sonner";
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 
 const OAuthCallback = () => {
   const [searchParams] = useSearchParams();
@@ -74,13 +74,12 @@ const OAuthCallback = () => {
 
   useEffect(() => {
     console.log('OAuthCallback component mounted');
-    console.log('Supabase configured:', isSupabaseConfigured());
     console.log('URL hash:', window.location.hash);
     
     // First check if we're in a Supabase OAuth flow
     const isSupabaseOAuth = window.location.hash && window.location.hash.includes('access_token');
     
-    if (isSupabaseOAuth && isSupabaseConfigured()) {
+    if (isSupabaseOAuth) {
       console.log('Detected Supabase OAuth flow');
       handleSupabaseCallback();
       return;

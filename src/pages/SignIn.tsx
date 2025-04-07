@@ -8,7 +8,6 @@ import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
-import { supabase } from "../lib/supabase";
 
 export default function SignIn() {
   const [email, setEmail] = useState("");
