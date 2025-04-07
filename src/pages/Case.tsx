@@ -666,12 +666,47 @@ export default function Case() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-medium">Notes</h3>
-                <DialogTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-7 gap-1">
-                    <Plus className="h-3.5 w-3.5" />
-                    Add note
-                  </Button>
-                </DialogTrigger>
+                {/* Fix: Wrap DialogTrigger within Dialog */}
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-7 gap-1">
+                      <Plus className="h-3.5 w-3.5" />
+                      Add note
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle>Add Note</DialogTitle>
+                      <DialogDescription>
+                        Create a new note for this case.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <Form {...form}>
+                      <form onSubmit={form.handleSubmit(onSubmitNotes)} className="space-y-4">
+                        <FormField
+                          control={form.control}
+                          name="notes"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Notes</FormLabel>
+                              <FormControl>
+                                <Textarea 
+                                  placeholder="Enter your notes here..."
+                                  className="min-h-[120px]"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <DialogFooter>
+                          <Button type="submit">Save Note</Button>
+                        </DialogFooter>
+                      </form>
+                    </Form>
+                  </DialogContent>
+                </Dialog>
               </div>
               
               <div className="grid grid-cols-2 gap-2 mb-2">
@@ -696,51 +731,17 @@ export default function Case() {
                 </Button>
               </div>
 
-              {/* Notes Input Dialog */}
-              <Dialog>
-                <DialogContent className="sm:max-w-[425px]">
-                  <DialogHeader>
-                    <DialogTitle>Add Note</DialogTitle>
-                    <DialogDescription>
-                      Create a new note for this case.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmitNotes)} className="space-y-4">
-                      <FormField
-                        control={form.control}
-                        name="notes"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Notes</FormLabel>
-                            <FormControl>
-                              <Textarea 
-                                placeholder="Enter your notes here..."
-                                className="min-h-[120px]"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <DialogFooter>
-                        <Button type="submit">Save Note</Button>
-                      </DialogFooter>
-                    </form>
-                  </Form>
-                </DialogContent>
-              </Dialog>
-            </div>
-            
-            <div className="mt-12 flex flex-col items-center justify-center p-6 text-center border rounded-lg">
-              <div className="p-3 bg-muted rounded-lg mb-3">
-                <FileText className="w-8 h-8" />
+              {/* Removed separate DialogTrigger and Dialog components, they're now combined above */}
+              
+              <div className="mt-12 flex flex-col items-center justify-center p-6 text-center border rounded-lg">
+                <div className="p-3 bg-muted rounded-lg mb-3">
+                  <FileText className="w-8 h-8" />
+                </div>
+                <h3 className="font-medium">Saved notes will appear here</h3>
+                <p className="text-xs mt-2 text-muted-foreground">
+                  Save a note or insight to create a new note, or click Add note above
+                </p>
               </div>
-              <h3 className="font-medium">Saved notes will appear here</h3>
-              <p className="text-xs mt-2 text-muted-foreground">
-                Save a note or insight to create a new note, or click Add note above
-              </p>
             </div>
           </div>
         </div>
