@@ -1,9 +1,11 @@
 
 import axios from 'axios';
 import { toast } from "sonner";
+import { supabase } from '@/integrations/supabase/client';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-const FLASK_API_URL = 'http://localhost:8000'; // Add Flask API URL
+// Read Flask API URL from environment variables
+const FLASK_API_URL = import.meta.env.VITE_FLASK_API_URL || 'http://localhost:8000';
 
 // Create axios instance
 const api = axios.create({
@@ -52,34 +54,134 @@ api.interceptors.response.use(
   }
 );
 
-// Forensic Flask API services
+// Forensic Flask API services with Supabase integration
 export const forensicService = {
   // Generate summary for an image
   generateImageSummary: async (caseId: string, imageId: string, imageFile: File | Blob) => {
-    const formData = new FormData();
-    formData.append('case_id', caseId);
-    formData.append('image_id', imageId);
-    formData.append('image', imageFile);
+    try {
+      // Create FormData for Flask API
+      const formData = new FormData();
+      formData.append('case_id', caseId);
+      formData.append('image_id', imageId);
+      formData.append('image', imageFile);
 
-    const response = await axios.post(
-      `${FLASK_API_URL}/generate-summary`,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+      // Call Flask API for image analysis
+      const response = await axios.post(
+        `${FLASK_API_URL}/generate-summary`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+
+      // Store summary result in Supabase
+      const { data: summaryData, error: summaryError } = await supabase
+        .from('forensic_summaries')
+        .upsert({
+          case_id: caseId,
+          image_id: imageId,
+          crime_type: response.data.crime_type,
+          objects_detected: response.data.objects_detected,
+          summary: response.data.summary,
+          created_at: new Date().toISOString(),
+        })
+        .select();
+
+      if (summaryError) {
+        console.error('Error storing summary in Supabase:', summaryError);
       }
-    );
-    return response.data;
+
+      return response.data;
+    } catch (error) {
+      console.error('Error generating summary:', error);
+      throw error;
+    }
+  },
+  
+  // Get summary for an image from Supabase
+  getImageSummary: async (caseId: string, imageId: string) => {
+    const { data, error } = await supabase
+      .from('forensic_summaries')
+      .select('*')
+      .eq('case_id', caseId)
+      .eq('image_id', imageId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return null; // No summary found
+      }
+      throw error;
+    }
+
+    return data;
   },
   
   // Generate report for entire case
   generateCaseReport: async (caseId: string) => {
-    const response = await axios.post(
-      `${FLASK_API_URL}/generate-case-report`,
-      { case_id: caseId }
-    );
-    return response.data;
+    try {
+      // Call Flask API for case report generation
+      const response = await axios.post(
+        `${FLASK_API_URL}/generate-case-report`,
+        { case_id: caseId }
+      );
+
+      // Store report in Supabase
+      const { data: reportData, error: reportError } = await supabase
+        .from('forensic_reports')
+        .upsert({
+          case_id: caseId,
+          report: response.data.report,
+          created_at: new Date().toISOString(),
+        })
+        .select();
+
+      if (reportError) {
+        console.error('Error storing report in Supabase:', reportError);
+      }
+
+      return response.data;
+    } catch (error) {
+      console.error('Error generating case report:', error);
+      throw error;
+    }
+  },
+  
+  // Get all summaries for a case from Supabase
+  getCaseSummaries: async (caseId: string) => {
+    const { data, error } = await supabase
+      .from('forensic_summaries')
+      .select('*')
+      .eq('case_id', caseId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    return data || [];
+  },
+  
+  // Get case report from Supabase
+  getCaseReport: async (caseId: string) => {
+    const { data, error } = await supabase
+      .from('forensic_reports')
+      .select('*')
+      .eq('case_id', caseId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return null; // No report found
+      }
+      throw error;
+    }
+
+    return data;
   }
 };
 

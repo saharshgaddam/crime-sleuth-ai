@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
@@ -52,6 +51,7 @@ import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, For
 import { useForm } from "react-hook-form";
 import { Card, CardContent } from "@/components/ui/card";
 import API, { forensicService } from "@/services/api";
+import { supabase } from "@/integrations/supabase/client";
 
 type UploadedImage = {
   id: string;
@@ -230,6 +230,24 @@ export default function Case() {
     setZoomLevel(1);
   };
 
+  const checkExistingSummary = async (imageId: string) => {
+    if (!caseId) return null;
+    
+    try {
+      const existingSummary = await forensicService.getImageSummary(caseId, imageId);
+      if (existingSummary) {
+        setSummary(existingSummary.summary);
+        setDetectedObjects(existingSummary.objects_detected);
+        setCrimeType(existingSummary.crime_type);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error checking existing summary:", error);
+      return false;
+    }
+  };
+
   const generateSummary = async () => {
     if (!selectedImage || !caseId) return;
     
@@ -239,20 +257,25 @@ export default function Case() {
     setCrimeType(null);
     
     try {
-      // Convert base64 to blob
-      const base64Response = await fetch(selectedImage.src);
-      const blob = await base64Response.blob();
+      // First check if we already have a summary in Supabase
+      const exists = await checkExistingSummary(selectedImage.id);
       
-      // Call the Flask API
-      const response = await forensicService.generateImageSummary(
-        caseId,
-        selectedImage.id,
-        blob
-      );
-      
-      setSummary(response.summary);
-      setDetectedObjects(response.objects_detected);
-      setCrimeType(response.crime_type);
+      if (!exists) {
+        // Convert base64 to blob
+        const base64Response = await fetch(selectedImage.src);
+        const blob = await base64Response.blob();
+        
+        // Call the Flask API via our service
+        const response = await forensicService.generateImageSummary(
+          caseId,
+          selectedImage.id,
+          blob
+        );
+        
+        setSummary(response.summary);
+        setDetectedObjects(response.objects_detected);
+        setCrimeType(response.crime_type);
+      }
       
       toast({
         title: "Summary Generated",
@@ -277,7 +300,16 @@ export default function Case() {
     try {
       setAnalyzing(true);
       
-      const response = await forensicService.generateCaseReport(caseId);
+      // First check if we already have a report
+      const existingReport = await forensicService.getCaseReport(caseId);
+      
+      let reportData;
+      if (existingReport) {
+        reportData = { report: existingReport.report };
+      } else {
+        // Generate new report
+        reportData = await forensicService.generateCaseReport(caseId);
+      }
       
       // Show success message
       toast({
@@ -286,7 +318,7 @@ export default function Case() {
       });
       
       // Here you could store the report or navigate to a report view
-      console.log("Case report:", response.report);
+      console.log("Case report:", reportData.report);
       
     } catch (error) {
       console.error("Error generating case report:", error);
