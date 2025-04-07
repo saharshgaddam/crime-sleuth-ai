@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
@@ -53,6 +54,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import API, { forensicService } from "@/services/api";
 import { supabase } from "@/integrations/supabase/client";
 
+// Define types for our data structures
 type UploadedImage = {
   id: string;
   src: string;
@@ -71,12 +73,20 @@ type UploadedDocument = {
 type SourceType = "all" | "images" | "documents";
 type ActiveTab = "sources" | "chat" | "studio";
 
-type SummaryResponse = {
+// Define types for our API responses
+type ForensicSummary = {
   case_id: string;
   image_id: string;
-  crime_type: string;
-  objects_detected: string[];
-  summary: string;
+  crime_type: string | null;
+  objects_detected: string[] | null;
+  summary: string | null;
+  created_at?: string;
+};
+
+type ForensicReport = {
+  case_id: string;
+  report: string | null;
+  created_at?: string;
 };
 
 export default function Case() {
@@ -192,6 +202,9 @@ export default function Case() {
     
     if (selectedImage && selectedImage.id === id) {
       setSelectedImage(null);
+      setSummary(null);
+      setDetectedObjects([]);
+      setCrimeType(null);
     }
     
     toast({
@@ -213,9 +226,18 @@ export default function Case() {
     setSelectedImage(image);
     setActiveTab("chat");
     setZoomLevel(1);
-    setSummary(null); // Reset summary when selecting a new image
-    setDetectedObjects([]);
-    setCrimeType(null);
+    
+    // Check for existing summary when selecting an image
+    if (caseId) {
+      checkExistingSummary(image.id).catch(error => {
+        console.error("Error loading existing summary:", error);
+      });
+    } else {
+      // Reset summary when no caseId is available
+      setSummary(null);
+      setDetectedObjects([]);
+      setCrimeType(null);
+    }
   };
 
   const handleZoomIn = () => {
@@ -237,7 +259,7 @@ export default function Case() {
       const existingSummary = await forensicService.getImageSummary(caseId, imageId);
       if (existingSummary) {
         setSummary(existingSummary.summary);
-        setDetectedObjects(existingSummary.objects_detected);
+        setDetectedObjects(existingSummary.objects_detected || []);
         setCrimeType(existingSummary.crime_type);
         return true;
       }
@@ -273,7 +295,7 @@ export default function Case() {
         );
         
         setSummary(response.summary);
-        setDetectedObjects(response.objects_detected);
+        setDetectedObjects(response.objects_detected || []);
         setCrimeType(response.crime_type);
       }
       
@@ -655,7 +677,7 @@ export default function Case() {
                           </div>
                         )}
                         
-                        {detectedObjects.length > 0 && (
+                        {detectedObjects && detectedObjects.length > 0 && (
                           <div className="mb-4">
                             <h5 className="text-sm font-medium mb-2">Objects Detected:</h5>
                             <div className="flex flex-wrap gap-1">

@@ -54,6 +54,24 @@ api.interceptors.response.use(
   }
 );
 
+// Define TypeScript types for our Supabase data
+type ForensicSummary = {
+  id?: string;
+  case_id: string;
+  image_id: string;
+  crime_type: string | null;
+  objects_detected: string[] | null;
+  summary: string | null;
+  created_at?: string | null;
+};
+
+type ForensicReport = {
+  id?: string;
+  case_id: string;
+  report: string | null;
+  created_at?: string | null;
+};
+
 // Forensic Flask API services with Supabase integration
 export const forensicService = {
   // Generate summary for an image
@@ -86,7 +104,7 @@ export const forensicService = {
           objects_detected: response.data.objects_detected,
           summary: response.data.summary,
           created_at: new Date().toISOString(),
-        })
+        } as ForensicSummary)
         .select();
 
       if (summaryError) {
@@ -116,7 +134,7 @@ export const forensicService = {
       throw error;
     }
 
-    return data;
+    return data as ForensicSummary;
   },
   
   // Generate report for entire case
@@ -135,7 +153,7 @@ export const forensicService = {
           case_id: caseId,
           report: response.data.report,
           created_at: new Date().toISOString(),
-        })
+        } as ForensicReport)
         .select();
 
       if (reportError) {
@@ -161,7 +179,7 @@ export const forensicService = {
       throw error;
     }
 
-    return data || [];
+    return (data || []) as ForensicSummary[];
   },
   
   // Get case report from Supabase
@@ -181,7 +199,7 @@ export const forensicService = {
       throw error;
     }
 
-    return data;
+    return data as ForensicReport;
   }
 };
 

@@ -83,6 +83,57 @@ export type Database = {
           },
         ]
       }
+      forensic_reports: {
+        Row: {
+          case_id: string
+          created_at: string | null
+          id: string
+          report: string | null
+        }
+        Insert: {
+          case_id: string
+          created_at?: string | null
+          id?: string
+          report?: string | null
+        }
+        Update: {
+          case_id?: string
+          created_at?: string | null
+          id?: string
+          report?: string | null
+        }
+        Relationships: []
+      }
+      forensic_summaries: {
+        Row: {
+          case_id: string
+          created_at: string | null
+          crime_type: string | null
+          id: string
+          image_id: string
+          objects_detected: string[] | null
+          summary: string | null
+        }
+        Insert: {
+          case_id: string
+          created_at?: string | null
+          crime_type?: string | null
+          id?: string
+          image_id: string
+          objects_detected?: string[] | null
+          summary?: string | null
+        }
+        Update: {
+          case_id?: string
+          created_at?: string | null
+          crime_type?: string | null
+          id?: string
+          image_id?: string
+          objects_detected?: string[] | null
+          summary?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
