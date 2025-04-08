@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
@@ -54,7 +53,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import API, { forensicService } from "@/services/api";
 import { supabase } from "@/integrations/supabase/client";
 
-// Define types for our data structures
 type UploadedImage = {
   id: string;
   src: string;
@@ -73,7 +71,6 @@ type UploadedDocument = {
 type SourceType = "all" | "images" | "documents";
 type ActiveTab = "sources" | "chat" | "studio";
 
-// Define types for our API responses
 type ForensicSummary = {
   case_id: string;
   image_id: string;
@@ -227,13 +224,11 @@ export default function Case() {
     setActiveTab("chat");
     setZoomLevel(1);
     
-    // Check for existing summary when selecting an image
     if (caseId) {
       checkExistingSummary(image.id).catch(error => {
         console.error("Error loading existing summary:", error);
       });
     } else {
-      // Reset summary when no caseId is available
       setSummary(null);
       setDetectedObjects([]);
       setCrimeType(null);
@@ -279,24 +274,30 @@ export default function Case() {
     setCrimeType(null);
     
     try {
-      // First check if we already have a summary in Supabase
+      console.log("Starting summary generation process...");
+      
       const exists = await checkExistingSummary(selectedImage.id);
       
       if (!exists) {
-        // Convert base64 to blob
+        console.log("No existing summary found, generating new one...");
+        
         const base64Response = await fetch(selectedImage.src);
         const blob = await base64Response.blob();
         
-        // Call the Flask API via our service
+        console.log("Image blob created, sending to API...");
+        
         const response = await forensicService.generateImageSummary(
           caseId,
           selectedImage.id,
           blob
         );
         
+        console.log("Summary generated successfully:", response);
         setSummary(response.summary);
         setDetectedObjects(response.objects_detected || []);
         setCrimeType(response.crime_type);
+      } else {
+        console.log("Using existing summary from database");
       }
       
       toast({
@@ -304,13 +305,13 @@ export default function Case() {
         description: "The image has been successfully analyzed.",
       });
     } catch (error) {
-      console.error("Error generating summary:", error);
+      console.error("Error in generateSummary:", error);
       toast({
         title: "Summary Failed",
-        description: "There was a problem analyzing this image.",
+        description: "There was a problem analyzing this image. Check the console for details.",
         variant: "destructive"
       });
-      setSummary("Failed to generate summary. Please try again.");
+      setSummary("Failed to generate summary. Please ensure the Flask API server is running at " + FLASK_API_URL);
     } finally {
       setIsSummarizing(false);
     }
@@ -322,26 +323,21 @@ export default function Case() {
     try {
       setAnalyzing(true);
       
-      // First check if we already have a report
       const existingReport = await forensicService.getCaseReport(caseId);
       
       let reportData;
       if (existingReport) {
         reportData = { report: existingReport.report };
       } else {
-        // Generate new report
         reportData = await forensicService.generateCaseReport(caseId);
       }
       
-      // Show success message
       toast({
         title: "Case Report Generated",
         description: "Your complete case report has been generated successfully.",
       });
       
-      // Here you could store the report or navigate to a report view
       console.log("Case report:", reportData.report);
-      
     } catch (error) {
       console.error("Error generating case report:", error);
       toast({
@@ -365,7 +361,6 @@ export default function Case() {
       return;
     }
     
-    // Generate full case report using all summarized images
     generateCaseReport();
   };
 

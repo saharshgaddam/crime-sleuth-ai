@@ -77,6 +77,8 @@ export const forensicService = {
   // Generate summary for an image
   generateImageSummary: async (caseId: string, imageId: string, imageFile: File | Blob) => {
     try {
+      console.log(`Generating summary for case ${caseId}, image ${imageId}`);
+      
       // Create FormData for Flask API
       const formData = new FormData();
       formData.append('case_id', caseId);
@@ -84,6 +86,7 @@ export const forensicService = {
       formData.append('image', imageFile);
 
       // Call Flask API for image analysis
+      console.log(`Calling Flask API at ${FLASK_API_URL}/generate-summary`);
       const response = await axios.post(
         `${FLASK_API_URL}/generate-summary`,
         formData,
@@ -93,8 +96,11 @@ export const forensicService = {
           },
         }
       );
+      
+      console.log('Flask API response:', response.data);
 
       // Store summary result in Supabase
+      console.log('Storing summary in Supabase');
       const { data: summaryData, error: summaryError } = await supabase
         .from('forensic_summaries')
         .upsert({
@@ -109,6 +115,7 @@ export const forensicService = {
 
       if (summaryError) {
         console.error('Error storing summary in Supabase:', summaryError);
+        throw summaryError;
       }
 
       return response.data;
@@ -120,31 +127,39 @@ export const forensicService = {
   
   // Get summary for an image from Supabase
   getImageSummary: async (caseId: string, imageId: string) => {
-    const { data, error } = await supabase
-      .from('forensic_summaries')
-      .select('*')
-      .eq('case_id', caseId)
-      .eq('image_id', imageId)
-      .single();
+    console.log(`Getting summary for case ${caseId}, image ${imageId}`);
+    try {
+      const { data, error } = await supabase
+        .from('forensic_summaries')
+        .select('*')
+        .eq('case_id', caseId)
+        .eq('image_id', imageId)
+        .maybeSingle();
 
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return null; // No summary found
+      if (error) {
+        console.error('Error fetching summary from Supabase:', error);
+        throw error;
       }
+
+      return data as unknown as ForensicSummary;
+    } catch (error) {
+      console.error('Error getting image summary:', error);
       throw error;
     }
-
-    return data as unknown as ForensicSummary;
   },
   
   // Generate report for entire case
   generateCaseReport: async (caseId: string) => {
     try {
+      console.log(`Generating case report for case ${caseId}`);
+      
       // Call Flask API for case report generation
       const response = await axios.post(
         `${FLASK_API_URL}/generate-case-report`,
         { case_id: caseId }
       );
+
+      console.log('Flask API response for case report:', response.data);
 
       // Store report in Supabase
       const { data: reportData, error: reportError } = await supabase
@@ -158,6 +173,7 @@ export const forensicService = {
 
       if (reportError) {
         console.error('Error storing report in Supabase:', reportError);
+        throw reportError;
       }
 
       return response.data;
@@ -169,37 +185,48 @@ export const forensicService = {
   
   // Get all summaries for a case from Supabase
   getCaseSummaries: async (caseId: string) => {
-    const { data, error } = await supabase
-      .from('forensic_summaries')
-      .select('*')
-      .eq('case_id', caseId)
-      .order('created_at', { ascending: false });
+    console.log(`Getting all summaries for case ${caseId}`);
+    try {
+      const { data, error } = await supabase
+        .from('forensic_summaries')
+        .select('*')
+        .eq('case_id', caseId)
+        .order('created_at', { ascending: false });
 
-    if (error) {
+      if (error) {
+        console.error('Error fetching case summaries from Supabase:', error);
+        throw error;
+      }
+
+      return (data || []) as unknown as ForensicSummary[];
+    } catch (error) {
+      console.error('Error getting case summaries:', error);
       throw error;
     }
-
-    return (data || []) as unknown as ForensicSummary[];
   },
   
   // Get case report from Supabase
   getCaseReport: async (caseId: string) => {
-    const { data, error } = await supabase
-      .from('forensic_reports')
-      .select('*')
-      .eq('case_id', caseId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+    console.log(`Getting case report for case ${caseId}`);
+    try {
+      const { data, error } = await supabase
+        .from('forensic_reports')
+        .select('*')
+        .eq('case_id', caseId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return null; // No report found
+      if (error) {
+        console.error('Error fetching case report from Supabase:', error);
+        throw error;
       }
+
+      return data as unknown as ForensicReport;
+    } catch (error) {
+      console.error('Error getting case report:', error);
       throw error;
     }
-
-    return data as unknown as ForensicReport;
   }
 };
 
