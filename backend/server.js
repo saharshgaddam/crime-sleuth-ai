@@ -9,6 +9,8 @@ const authRoutes = require('./routes/auth');
 const caseRoutes = require('./routes/cases');
 const userRoutes = require('./routes/users');
 const evidenceRoutes = require('./routes/evidence');
+const mlRoutes = require('./routes/ml');
+const axios = require('axios');
 
 dotenv.config();
 
@@ -47,6 +49,23 @@ app.use('/api/auth', authRoutes);
 app.use('/api/cases', caseRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/evidence', evidenceRoutes);
+app.use('/api/ml', mlRoutes);
+
+// ML Service health check
+const ML_SERVER_URL = process.env.ML_SERVER_URL || 'http://localhost:8000';
+app.get('/api/ml-health', async (req, res) => {
+  try {
+    await axios.get(`${ML_SERVER_URL}/health`, { timeout: 5000 });
+    res.status(200).json({ status: 'success', message: 'ML service is available' });
+  } catch (error) {
+    console.error('ML service health check failed:', error);
+    res.status(503).json({ 
+      status: 'error', 
+      message: 'ML service is unavailable',
+      error: error.message
+    });
+  }
+});
 
 // Basic route for testing
 app.get('/', (req, res) => {
