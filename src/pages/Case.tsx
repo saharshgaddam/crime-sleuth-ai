@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
@@ -105,17 +104,33 @@ export default function Case() {
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [detectedObjects, setDetectedObjects] = useState<string[]>([]);
   const [crimeType, setCrimeType] = useState<string | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const { toast } = useToast();
   
-  const FLASK_API_URL = import.meta.env.VITE_FLASK_API_URL || 'https://mockapi.io/api/v1';
+  const FLASK_API_URL = import.meta.env.VITE_FLASK_API_URL || 'http://localhost:8000';
 
-  // Character-by-character text display effect
+  useEffect(() => {
+    const checkApiConnection = async () => {
+      try {
+        await fetch(`${FLASK_API_URL}/health`, { 
+          method: 'HEAD',
+          mode: 'no-cors'
+        });
+        setConnectionError(null);
+      } catch (error) {
+        console.error("Cannot connect to ML API", error);
+        setConnectionError("Cannot connect to ML service. Please ensure it's running and accessible.");
+      }
+    };
+    
+    checkApiConnection();
+  }, [FLASK_API_URL]);
+
   useEffect(() => {
     if (summary && summary !== displayedSummary) {
       let currentIndex = 0;
       const fullText = summary;
       
-      // Reset displayed summary if it's a new summary
       if (!displayedSummary || displayedSummary.endsWith("...")) {
         setDisplayedSummary("");
       }
@@ -129,7 +144,7 @@ export default function Case() {
         } else {
           clearInterval(interval);
         }
-      }, 10); // Speed of character display
+      }, 10);
       
       return () => clearInterval(interval);
     }
@@ -286,7 +301,7 @@ export default function Case() {
       const existingSummary = await forensicService.getImageSummary(caseId, imageId);
       if (existingSummary) {
         setSummary(existingSummary.summary);
-        setDisplayedSummary(""); // Reset for character-by-character display
+        setDisplayedSummary("");
         setDetectedObjects(existingSummary.objects_detected || []);
         setCrimeType(existingSummary.crime_type);
         return true;
@@ -298,22 +313,16 @@ export default function Case() {
     }
   };
 
-  // Simulated data for mock response
-  const mockCrimeTypes = ["Theft", "Vandalism", "Assault", "Fraud", "Breaking and Entering"];
-  const mockObjects = [
-    ["knife", "blood spatter", "broken window", "footprints"],
-    ["graffiti", "spray paint can", "wall damage", "fingerprints"],
-    ["car", "damaged bumper", "skid marks", "broken glass"],
-    ["weapon", "bullet casings", "blood", "torn clothing"],
-    ["computer", "documents", "signature forgery", "ID cards"]
-  ];
-  const mockSummaries = [
-    "The image shows a potential crime scene with several key pieces of evidence. There appears to be blood spatter pattern consistent with a medium-velocity impact. The distribution suggests the victim was standing approximately 4-5 feet from the attacker. A knife is visible in the lower portion of the image, likely the weapon used in this incident. The broken window indicates a possible point of entry, and distinct footprint patterns suggest the perpetrator wore size 11 boots with a specific tread pattern that could be matched to a suspect's footwear. The scene appears to have been disturbed after the initial incident, potentially by the perpetrator searching for valuables or attempting to clean up evidence.",
-    "The image displays extensive vandalism with graffiti covering approximately 70% of the visible wall. The style and tag signatures are consistent with known gang markings in the area. Spray paint analysis suggests the use of industrial-grade aerosol paint commonly available at hardware stores. Several fingerprints are visible on the adjacent surfaces, likely left when the perpetrator was unpacking or changing paint canisters. The wall damage extends beyond superficial paint and includes structural damage to the brick mortar, elevating this from simple graffiti to property destruction. The time of incident can be estimated between 8-12 hours before the image was captured based on the drying patterns of the paint.",
-    "The image shows a vehicle involved in what appears to be a collision incident. The car exhibits significant damage to the front bumper consistent with a medium-velocity impact with a stationary object, possibly a pole or barrier. Broken glass fragments suggest the headlight assembly shattered on impact. The skid marks visible on the pavement indicate the driver attempted emergency braking before collision, with an estimated speed of 30-40 mph based on the length and pattern of the marks. Paint transfer visible on the damaged sections appears inconsistent with a single-vehicle accident, suggesting potential involvement of another vehicle that left the scene. The angle of impact and damage pattern is consistent with driver impairment or evasive action.",
-    "The image depicts what appears to be the aftermath of a violent altercation. A weapon (likely a small-caliber handgun) is visible in the frame, alongside multiple bullet casings indicating at least 3-4 shots were fired. Blood spatter patterns suggest the victim was initially standing before falling to the ground. The torn clothing articles show signs of struggle before the shooting occurred. The evidence suggests this was not a random act but a targeted confrontation. The position of evidence items indicates the altercation moved across the room from east to west, with the victim retreating before the shooting. The perpetrator appears to have stayed at the scene for several minutes after the incident based on disturbance patterns in the blood pools.",
-    "The image shows evidence of sophisticated identity fraud operations. Multiple forged identification cards are visible, showing consistent production methods indicating a single creator. The computer visible appears to be running specialized software typically used for document reproduction. The quality of the forgeries is exceptional, suggesting professional-grade equipment was used. Document examination reveals watermark attempts and holographic overlays consistent with current identity document security features. The signature forgeries show evidence of practice and refinement, suggesting the perpetrator spent considerable time perfecting their technique. The arrangement of materials indicates an organized operation rather than an opportunistic attempt."
-  ];
+  const extractImageFile = async (imageSrc: string): Promise<Blob> => {
+    try {
+      const response = await fetch(imageSrc);
+      const blob = await response.blob();
+      return blob;
+    } catch (error) {
+      console.error("Error converting image to blob:", error);
+      throw new Error("Failed to process image file");
+    }
+  };
 
   const generateSummary = async () => {
     if (!selectedImage || !caseId) return;
@@ -323,6 +332,7 @@ export default function Case() {
     setDisplayedSummary("Analyzing image...");
     setDetectedObjects([]);
     setCrimeType(null);
+    setConnectionError(null);
     
     try {
       console.log("Starting summary generation process...");
@@ -331,48 +341,14 @@ export default function Case() {
       
       if (!exists) {
         console.log("No existing summary found, generating new one...");
-
-        // Simulate API call with a delay for realism
-        await new Promise(resolve => setTimeout(resolve, 2000));
         
-        // Generate mock response
-        const randomIndex = Math.floor(Math.random() * mockCrimeTypes.length);
-        const mockResponse = {
-          case_id: caseId,
-          image_id: selectedImage.id,
-          crime_type: mockCrimeTypes[randomIndex],
-          objects_detected: mockObjects[randomIndex],
-          summary: mockSummaries[randomIndex]
-        };
+        const imageFile = await extractImageFile(selectedImage.src);
         
-        console.log("Summary generated successfully:", mockResponse);
+        const result = await forensicService.generateImageSummary(caseId, selectedImage.id, imageFile);
         
-        // Store the mock response in Supabase
-        try {
-          const { data: summaryData, error: summaryError } = await supabase
-            .from('forensic_summaries')
-            .upsert({
-              case_id: caseId,
-              image_id: selectedImage.id,
-              crime_type: mockResponse.crime_type,
-              objects_detected: mockResponse.objects_detected,
-              summary: mockResponse.summary,
-              created_at: new Date().toISOString(),
-            })
-            .select();
-            
-          if (summaryError) {
-            console.error("Error storing mock summary in Supabase:", summaryError);
-          } else {
-            console.log("Successfully stored mock summary in Supabase");
-          }
-        } catch (dbError) {
-          console.error("Failed to store mock data in Supabase:", dbError);
-        }
-        
-        setSummary(mockResponse.summary);
-        setDetectedObjects(mockResponse.objects_detected || []);
-        setCrimeType(mockResponse.crime_type);
+        setSummary(result.summary);
+        setDetectedObjects(result.objects_detected || []);
+        setCrimeType(result.crime_type);
       } else {
         console.log("Using existing summary from database");
       }
@@ -383,13 +359,17 @@ export default function Case() {
       });
     } catch (error) {
       console.error("Error in generateSummary:", error);
+      
+      const errorMessage = error.message || `Failed to generate summary. Please ensure the ML server is running at ${FLASK_API_URL}`;
+      setConnectionError(errorMessage);
+      setSummary(null);
+      setDisplayedSummary(null);
+      
       toast({
         title: "Summary Failed",
-        description: "There was a problem analyzing this image. Check the console for details.",
+        description: errorMessage,
         variant: "destructive"
       });
-      setSummary(`Failed to generate summary. Please ensure the Flask API server is running at ${FLASK_API_URL}`);
-      setDisplayedSummary(`Failed to generate summary. Please ensure the Flask API server is running at ${FLASK_API_URL}`);
     } finally {
       setIsSummarizing(false);
     }
@@ -407,41 +387,7 @@ export default function Case() {
       if (existingReport) {
         reportData = { report: existingReport.report };
       } else {
-        // Generate mock report
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        
-        const mockReport = `# Forensic Analysis Report for Case #${caseId.replace("case-", "")}
-        
-## Executive Summary
-This report details the forensic analysis of ${uploadedImages.length} images and ${uploadedDocs.length} documents related to case #${caseId.replace("case-", "")}. The evidence suggests a ${mockCrimeTypes[Math.floor(Math.random() * mockCrimeTypes.length)]} incident occurred with multiple pieces of supporting evidence.
-
-## Evidence Analysis
-${uploadedImages.map((img, i) => `Image ${i+1}: ${img.name} - Contains evidence of ${mockObjects[i % mockObjects.length].join(", ")}`).join("\n")}
-
-## Conclusion
-Based on the forensic analysis conducted, there is substantial evidence to support further investigation into this incident. Additional analysis may be required for conclusive determination.`;
-        
-        // Store mock report in Supabase
-        try {
-          const { data, error } = await supabase
-            .from('forensic_reports')
-            .upsert({
-              case_id: caseId,
-              report: mockReport,
-              created_at: new Date().toISOString(),
-            })
-            .select();
-            
-          if (error) {
-            console.error("Error storing mock report in Supabase:", error);
-          } else {
-            console.log("Successfully stored mock report in Supabase");
-          }
-        } catch (dbError) {
-          console.error("Failed to store mock report in Supabase:", dbError);
-        }
-        
-        reportData = { report: mockReport };
+        reportData = await forensicService.generateCaseReport(caseId);
       }
       
       toast({
@@ -452,9 +398,12 @@ Based on the forensic analysis conducted, there is substantial evidence to suppo
       console.log("Case report:", reportData.report);
     } catch (error) {
       console.error("Error generating case report:", error);
+      
+      const errorMessage = error.message || "There was a problem generating the case report.";
+      
       toast({
         title: "Report Generation Failed",
-        description: "There was a problem generating the case report.",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
@@ -763,16 +712,28 @@ Based on the forensic analysis conducted, there is substantial evidence to suppo
                       {isSummarizing ? (
                         <>
                           <Loader className="h-4 w-4 animate-spin" />
-                          Summarizing...
+                          Analyzing...
                         </>
                       ) : (
                         <>
                           <BrainCircuit className="h-4 w-4" />
-                          Summarize
+                          Analyze with ML
                         </>
                       )}
                     </Button>
                   </div>
+                  
+                  {connectionError && (
+                    <div className="mb-4 p-4 border border-red-300 bg-red-50 rounded-md text-red-800">
+                      <p className="flex items-center">
+                        <X className="h-4 w-4 mr-2 flex-shrink-0" />
+                        <span>{connectionError}</span>
+                      </p>
+                      <p className="text-sm mt-2">
+                        Check that your ML server is running at {FLASK_API_URL} and is properly configured to accept requests from this application.
+                      </p>
+                    </div>
+                  )}
                   
                   {displayedSummary ? (
                     <Card className="mb-4">
@@ -819,7 +780,7 @@ Based on the forensic analysis conducted, there is substantial evidence to suppo
                     <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground border border-dashed rounded-lg">
                       <BrainCircuit className="h-8 w-8 mb-3" />
                       <p>Generate an AI-powered summary of this image</p>
-                      <p className="text-xs mt-1">Click the Summarize button above to analyze this evidence</p>
+                      <p className="text-xs mt-1">Click the Analyze with ML button above to analyze this evidence</p>
                     </div>
                   )}
                 </div>

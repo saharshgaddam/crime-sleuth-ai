@@ -1,4 +1,3 @@
-
 import axios from 'axios';
 import { toast } from "sonner";
 import { supabase } from '@/integrations/supabase/client';
@@ -54,6 +53,40 @@ api.interceptors.response.use(
   }
 );
 
+// Create a separate axios instance for ML API calls with better error handling
+const mlApi = axios.create({
+  baseURL: FLASK_API_URL,
+  timeout: 30000, // 30-second timeout for ML operations which might take longer
+  headers: {
+    'Content-Type': 'application/json',
+  }
+});
+
+// Add response interceptor for ML API with improved error messages
+mlApi.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  (error) => {
+    console.error("ML API Error:", error);
+    let message = "Failed to connect to ML service";
+    
+    if (error.code === 'ECONNABORTED') {
+      message = "ML operation timed out. The server might be processing a large request.";
+    } else if (error.code === 'ERR_NETWORK' || !error.response) {
+      message = `Cannot connect to ML server at ${FLASK_API_URL}. Please ensure the ML service is running.`;
+    } else if (error.response) {
+      message = error.response.data?.error || `ML service error: ${error.response.status}`;
+    }
+    
+    toast.error(message);
+    return Promise.reject({
+      ...error,
+      userMessage: message
+    });
+  }
+);
+
 // Define TypeScript types for our Supabase data
 type ForensicSummary = {
   id?: string;
@@ -85,10 +118,10 @@ export const forensicService = {
       formData.append('image_id', imageId);
       formData.append('image', imageFile);
 
-      // Call Flask API for image analysis
+      // Call Flask API for image analysis with improved error handling
       console.log(`Calling Flask API at ${FLASK_API_URL}/generate-summary`);
-      const response = await axios.post(
-        `${FLASK_API_URL}/generate-summary`,
+      const response = await mlApi.post(
+        `/generate-summary`,
         formData,
         {
           headers: {
@@ -121,7 +154,10 @@ export const forensicService = {
       return response.data;
     } catch (error) {
       console.error('Error generating summary:', error);
-      throw error;
+      
+      // Rethrow with user-friendly message
+      const userMessage = error.userMessage || "Failed to generate image summary. Please try again later.";
+      throw new Error(userMessage);
     }
   },
   
@@ -153,9 +189,9 @@ export const forensicService = {
     try {
       console.log(`Generating case report for case ${caseId}`);
       
-      // Call Flask API for case report generation
-      const response = await axios.post(
-        `${FLASK_API_URL}/generate-case-report`,
+      // Call Flask API for case report generation with improved error handling
+      const response = await mlApi.post(
+        `/generate-case-report`,
         { case_id: caseId }
       );
 
@@ -179,7 +215,10 @@ export const forensicService = {
       return response.data;
     } catch (error) {
       console.error('Error generating case report:', error);
-      throw error;
+      
+      // Rethrow with user-friendly message
+      const userMessage = error.userMessage || "Failed to generate case report. Please try again later.";
+      throw new Error(userMessage);
     }
   },
   
