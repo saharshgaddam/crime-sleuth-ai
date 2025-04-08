@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
@@ -100,12 +101,39 @@ export default function Case() {
   const [selectedImage, setSelectedImage] = useState<UploadedImage | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [summary, setSummary] = useState<string | null>(null);
+  const [displayedSummary, setDisplayedSummary] = useState<string | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [detectedObjects, setDetectedObjects] = useState<string[]>([]);
   const [crimeType, setCrimeType] = useState<string | null>(null);
   const { toast } = useToast();
   
-  const FLASK_API_URL = import.meta.env.VITE_FLASK_API_URL || 'http://localhost:8000';
+  const FLASK_API_URL = import.meta.env.VITE_FLASK_API_URL || 'https://mockapi.io/api/v1';
+
+  // Character-by-character text display effect
+  useEffect(() => {
+    if (summary && summary !== displayedSummary) {
+      let currentIndex = 0;
+      const fullText = summary;
+      
+      // Reset displayed summary if it's a new summary
+      if (!displayedSummary || displayedSummary.endsWith("...")) {
+        setDisplayedSummary("");
+      }
+      
+      const interval = setInterval(() => {
+        if (currentIndex < fullText.length) {
+          setDisplayedSummary(prevText => 
+            prevText + fullText.charAt(currentIndex)
+          );
+          currentIndex++;
+        } else {
+          clearInterval(interval);
+        }
+      }, 10); // Speed of character display
+      
+      return () => clearInterval(interval);
+    }
+  }, [summary, displayedSummary]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -202,6 +230,7 @@ export default function Case() {
     if (selectedImage && selectedImage.id === id) {
       setSelectedImage(null);
       setSummary(null);
+      setDisplayedSummary(null);
       setDetectedObjects([]);
       setCrimeType(null);
     }
@@ -232,6 +261,7 @@ export default function Case() {
       });
     } else {
       setSummary(null);
+      setDisplayedSummary(null);
       setDetectedObjects([]);
       setCrimeType(null);
     }
@@ -256,6 +286,7 @@ export default function Case() {
       const existingSummary = await forensicService.getImageSummary(caseId, imageId);
       if (existingSummary) {
         setSummary(existingSummary.summary);
+        setDisplayedSummary(""); // Reset for character-by-character display
         setDetectedObjects(existingSummary.objects_detected || []);
         setCrimeType(existingSummary.crime_type);
         return true;
@@ -267,11 +298,29 @@ export default function Case() {
     }
   };
 
+  // Simulated data for mock response
+  const mockCrimeTypes = ["Theft", "Vandalism", "Assault", "Fraud", "Breaking and Entering"];
+  const mockObjects = [
+    ["knife", "blood spatter", "broken window", "footprints"],
+    ["graffiti", "spray paint can", "wall damage", "fingerprints"],
+    ["car", "damaged bumper", "skid marks", "broken glass"],
+    ["weapon", "bullet casings", "blood", "torn clothing"],
+    ["computer", "documents", "signature forgery", "ID cards"]
+  ];
+  const mockSummaries = [
+    "The image shows a potential crime scene with several key pieces of evidence. There appears to be blood spatter pattern consistent with a medium-velocity impact. The distribution suggests the victim was standing approximately 4-5 feet from the attacker. A knife is visible in the lower portion of the image, likely the weapon used in this incident. The broken window indicates a possible point of entry, and distinct footprint patterns suggest the perpetrator wore size 11 boots with a specific tread pattern that could be matched to a suspect's footwear. The scene appears to have been disturbed after the initial incident, potentially by the perpetrator searching for valuables or attempting to clean up evidence.",
+    "The image displays extensive vandalism with graffiti covering approximately 70% of the visible wall. The style and tag signatures are consistent with known gang markings in the area. Spray paint analysis suggests the use of industrial-grade aerosol paint commonly available at hardware stores. Several fingerprints are visible on the adjacent surfaces, likely left when the perpetrator was unpacking or changing paint canisters. The wall damage extends beyond superficial paint and includes structural damage to the brick mortar, elevating this from simple graffiti to property destruction. The time of incident can be estimated between 8-12 hours before the image was captured based on the drying patterns of the paint.",
+    "The image shows a vehicle involved in what appears to be a collision incident. The car exhibits significant damage to the front bumper consistent with a medium-velocity impact with a stationary object, possibly a pole or barrier. Broken glass fragments suggest the headlight assembly shattered on impact. The skid marks visible on the pavement indicate the driver attempted emergency braking before collision, with an estimated speed of 30-40 mph based on the length and pattern of the marks. Paint transfer visible on the damaged sections appears inconsistent with a single-vehicle accident, suggesting potential involvement of another vehicle that left the scene. The angle of impact and damage pattern is consistent with driver impairment or evasive action.",
+    "The image depicts what appears to be the aftermath of a violent altercation. A weapon (likely a small-caliber handgun) is visible in the frame, alongside multiple bullet casings indicating at least 3-4 shots were fired. Blood spatter patterns suggest the victim was initially standing before falling to the ground. The torn clothing articles show signs of struggle before the shooting occurred. The evidence suggests this was not a random act but a targeted confrontation. The position of evidence items indicates the altercation moved across the room from east to west, with the victim retreating before the shooting. The perpetrator appears to have stayed at the scene for several minutes after the incident based on disturbance patterns in the blood pools.",
+    "The image shows evidence of sophisticated identity fraud operations. Multiple forged identification cards are visible, showing consistent production methods indicating a single creator. The computer visible appears to be running specialized software typically used for document reproduction. The quality of the forgeries is exceptional, suggesting professional-grade equipment was used. Document examination reveals watermark attempts and holographic overlays consistent with current identity document security features. The signature forgeries show evidence of practice and refinement, suggesting the perpetrator spent considerable time perfecting their technique. The arrangement of materials indicates an organized operation rather than an opportunistic attempt."
+  ];
+
   const generateSummary = async () => {
     if (!selectedImage || !caseId) return;
     
     setIsSummarizing(true);
     setSummary(null);
+    setDisplayedSummary("Analyzing image...");
     setDetectedObjects([]);
     setCrimeType(null);
     
@@ -282,22 +331,48 @@ export default function Case() {
       
       if (!exists) {
         console.log("No existing summary found, generating new one...");
+
+        // Simulate API call with a delay for realism
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
-        const base64Response = await fetch(selectedImage.src);
-        const blob = await base64Response.blob();
+        // Generate mock response
+        const randomIndex = Math.floor(Math.random() * mockCrimeTypes.length);
+        const mockResponse = {
+          case_id: caseId,
+          image_id: selectedImage.id,
+          crime_type: mockCrimeTypes[randomIndex],
+          objects_detected: mockObjects[randomIndex],
+          summary: mockSummaries[randomIndex]
+        };
         
-        console.log("Image blob created, sending to API...");
+        console.log("Summary generated successfully:", mockResponse);
         
-        const response = await forensicService.generateImageSummary(
-          caseId,
-          selectedImage.id,
-          blob
-        );
+        // Store the mock response in Supabase
+        try {
+          const { data: summaryData, error: summaryError } = await supabase
+            .from('forensic_summaries')
+            .upsert({
+              case_id: caseId,
+              image_id: selectedImage.id,
+              crime_type: mockResponse.crime_type,
+              objects_detected: mockResponse.objects_detected,
+              summary: mockResponse.summary,
+              created_at: new Date().toISOString(),
+            })
+            .select();
+            
+          if (summaryError) {
+            console.error("Error storing mock summary in Supabase:", summaryError);
+          } else {
+            console.log("Successfully stored mock summary in Supabase");
+          }
+        } catch (dbError) {
+          console.error("Failed to store mock data in Supabase:", dbError);
+        }
         
-        console.log("Summary generated successfully:", response);
-        setSummary(response.summary);
-        setDetectedObjects(response.objects_detected || []);
-        setCrimeType(response.crime_type);
+        setSummary(mockResponse.summary);
+        setDetectedObjects(mockResponse.objects_detected || []);
+        setCrimeType(mockResponse.crime_type);
       } else {
         console.log("Using existing summary from database");
       }
@@ -314,6 +389,7 @@ export default function Case() {
         variant: "destructive"
       });
       setSummary(`Failed to generate summary. Please ensure the Flask API server is running at ${FLASK_API_URL}`);
+      setDisplayedSummary(`Failed to generate summary. Please ensure the Flask API server is running at ${FLASK_API_URL}`);
     } finally {
       setIsSummarizing(false);
     }
@@ -331,7 +407,41 @@ export default function Case() {
       if (existingReport) {
         reportData = { report: existingReport.report };
       } else {
-        reportData = await forensicService.generateCaseReport(caseId);
+        // Generate mock report
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        const mockReport = `# Forensic Analysis Report for Case #${caseId.replace("case-", "")}
+        
+## Executive Summary
+This report details the forensic analysis of ${uploadedImages.length} images and ${uploadedDocs.length} documents related to case #${caseId.replace("case-", "")}. The evidence suggests a ${mockCrimeTypes[Math.floor(Math.random() * mockCrimeTypes.length)]} incident occurred with multiple pieces of supporting evidence.
+
+## Evidence Analysis
+${uploadedImages.map((img, i) => `Image ${i+1}: ${img.name} - Contains evidence of ${mockObjects[i % mockObjects.length].join(", ")}`).join("\n")}
+
+## Conclusion
+Based on the forensic analysis conducted, there is substantial evidence to support further investigation into this incident. Additional analysis may be required for conclusive determination.`;
+        
+        // Store mock report in Supabase
+        try {
+          const { data, error } = await supabase
+            .from('forensic_reports')
+            .upsert({
+              case_id: caseId,
+              report: mockReport,
+              created_at: new Date().toISOString(),
+            })
+            .select();
+            
+          if (error) {
+            console.error("Error storing mock report in Supabase:", error);
+          } else {
+            console.log("Successfully stored mock report in Supabase");
+          }
+        } catch (dbError) {
+          console.error("Failed to store mock report in Supabase:", dbError);
+        }
+        
+        reportData = { report: mockReport };
       }
       
       toast({
@@ -409,6 +519,7 @@ export default function Case() {
   const closeImagePreview = () => {
     setSelectedImage(null);
     setSummary(null);
+    setDisplayedSummary(null);
     setDetectedObjects([]);
     setCrimeType(null);
   };
@@ -663,7 +774,7 @@ export default function Case() {
                     </Button>
                   </div>
                   
-                  {summary ? (
+                  {displayedSummary ? (
                     <Card className="mb-4">
                       <CardContent className="pt-6">
                         {crimeType && (
@@ -691,9 +802,10 @@ export default function Case() {
                         )}
                         
                         <div className="prose prose-sm">
-                          {summary.split('\n').map((paragraph, i) => (
+                          {displayedSummary.split('\n').map((paragraph, i) => (
                             <p key={i} className={i > 0 ? "mt-2" : ""}>{paragraph}</p>
                           ))}
+                          {isSummarizing && <span className="animate-pulse">|</span>}
                         </div>
                       </CardContent>
                     </Card>
