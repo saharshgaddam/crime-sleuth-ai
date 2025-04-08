@@ -1,7 +1,6 @@
 import axios from 'axios';
 import { toast } from "sonner";
 import { supabase } from '@/integrations/supabase/client';
-import mlApiClient, { generateImageSummary as mlGenerateImageSummary, generateCaseReport as mlGenerateCaseReport } from './mlApiClient';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 // Read Flask API URL from environment variables
@@ -54,6 +53,40 @@ api.interceptors.response.use(
   }
 );
 
+// Create a separate axios instance for ML API calls with better error handling
+const mlApi = axios.create({
+  baseURL: FLASK_API_URL,
+  timeout: 30000, // 30-second timeout for ML operations which might take longer
+  headers: {
+    'Content-Type': 'application/json',
+  }
+});
+
+// Add response interceptor for ML API with improved error messages
+mlApi.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  (error) => {
+    console.error("ML API Error:", error);
+    let message = "Failed to connect to ML service";
+    
+    if (error.code === 'ECONNABORTED') {
+      message = "ML operation timed out. The server might be processing a large request.";
+    } else if (error.code === 'ERR_NETWORK' || !error.response) {
+      message = `Cannot connect to ML server at ${FLASK_API_URL}. Please ensure the ML service is running.`;
+    } else if (error.response) {
+      message = error.response.data?.error || `ML service error: ${error.response.status}`;
+    }
+    
+    toast.error(message);
+    return Promise.reject({
+      ...error,
+      userMessage: message
+    });
+  }
+);
+
 // Define TypeScript types for our Supabase data
 type ForensicSummary = {
   id?: string;
@@ -79,10 +112,25 @@ export const forensicService = {
     try {
       console.log(`Generating summary for case ${caseId}, image ${imageId}`);
       
-      // Call our ML API client to generate summary
-      const result = await mlGenerateImageSummary(caseId, imageId, imageFile);
+      // Create FormData for Flask API
+      const formData = new FormData();
+      formData.append('case_id', caseId);
+      formData.append('image_id', imageId);
+      formData.append('image', imageFile);
+
+      // Call Flask API for image analysis with improved error handling
+      console.log(`Calling Flask API at ${FLASK_API_URL}/generate-summary`);
+      const response = await mlApi.post(
+        `/generate-summary`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
       
-      console.log('ML API response:', result);
+      console.log('Flask API response:', response.data);
 
       // Store summary result in Supabase
       console.log('Storing summary in Supabase');
@@ -91,9 +139,9 @@ export const forensicService = {
         .upsert({
           case_id: caseId,
           image_id: imageId,
-          crime_type: result.crime_type,
-          objects_detected: result.objects_detected,
-          summary: result.summary,
+          crime_type: response.data.crime_type,
+          objects_detected: response.data.objects_detected,
+          summary: response.data.summary,
           created_at: new Date().toISOString(),
         })
         .select();
@@ -103,7 +151,7 @@ export const forensicService = {
         throw summaryError;
       }
 
-      return result;
+      return response.data;
     } catch (error) {
       console.error('Error generating summary:', error);
       
@@ -141,17 +189,20 @@ export const forensicService = {
     try {
       console.log(`Generating case report for case ${caseId}`);
       
-      // Call ML API for case report generation
-      const response = await mlGenerateCaseReport(caseId);
+      // Call Flask API for case report generation with improved error handling
+      const response = await mlApi.post(
+        `/generate-case-report`,
+        { case_id: caseId }
+      );
 
-      console.log('ML API response for case report:', response);
+      console.log('Flask API response for case report:', response.data);
 
       // Store report in Supabase
       const { data: reportData, error: reportError } = await supabase
         .from('forensic_reports')
         .upsert({
           case_id: caseId,
-          report: response.report,
+          report: response.data.report,
           created_at: new Date().toISOString(),
         })
         .select();
@@ -161,7 +212,7 @@ export const forensicService = {
         throw reportError;
       }
 
-      return response;
+      return response.data;
     } catch (error) {
       console.error('Error generating case report:', error);
       

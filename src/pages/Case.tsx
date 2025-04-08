@@ -1,5 +1,4 @@
-
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -53,7 +52,6 @@ import { useForm } from "react-hook-form";
 import { Card, CardContent } from "@/components/ui/card";
 import API, { forensicService } from "@/services/api";
 import { supabase } from "@/integrations/supabase/client";
-import { checkMlApiConnection } from "@/services/mlApiClient";
 
 type UploadedImage = {
   id: string;
@@ -108,73 +106,47 @@ export default function Case() {
   const [crimeType, setCrimeType] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const { toast } = useToast();
-  const typingIntervalRef = useRef<number | null>(null);
   
   const FLASK_API_URL = import.meta.env.VITE_FLASK_API_URL || 'http://localhost:8000';
 
-  // Check ML API connection on component mount
   useEffect(() => {
     const checkApiConnection = async () => {
       try {
-        const isConnected = await checkMlApiConnection();
-        if (isConnected) {
-          setConnectionError(null);
-          console.log("Successfully connected to ML API");
-        } else {
-          setConnectionError(`Cannot connect to ML service at ${FLASK_API_URL}. Please ensure it's running and accessible.`);
-        }
+        await fetch(`${FLASK_API_URL}/health`, { 
+          method: 'HEAD',
+          mode: 'no-cors'
+        });
+        setConnectionError(null);
       } catch (error) {
-        console.error("Error checking ML API connection:", error);
-        setConnectionError(`Error connecting to ML service: ${error.message}`);
+        console.error("Cannot connect to ML API", error);
+        setConnectionError("Cannot connect to ML service. Please ensure it's running and accessible.");
       }
     };
     
     checkApiConnection();
-    
-    // Check connection every 30 seconds
-    const intervalId = setInterval(checkApiConnection, 30000);
-    
-    return () => clearInterval(intervalId);
   }, [FLASK_API_URL]);
 
-  // Improved character-by-character typing effect with cleanup
   useEffect(() => {
     if (summary && summary !== displayedSummary) {
-      // Clear any existing typing animation
-      if (typingIntervalRef.current) {
-        clearInterval(typingIntervalRef.current);
-      }
+      let currentIndex = 0;
+      const fullText = summary;
       
-      // Reset displayed text if it's a new summary
       if (!displayedSummary || displayedSummary.endsWith("...")) {
         setDisplayedSummary("");
       }
       
-      let currentIndex = 0;
-      const fullText = summary;
-      
-      // Set up typing animation
-      typingIntervalRef.current = window.setInterval(() => {
+      const interval = setInterval(() => {
         if (currentIndex < fullText.length) {
           setDisplayedSummary(prevText => 
             prevText + fullText.charAt(currentIndex)
           );
           currentIndex++;
         } else {
-          // Clear interval when done
-          if (typingIntervalRef.current) {
-            clearInterval(typingIntervalRef.current);
-            typingIntervalRef.current = null;
-          }
+          clearInterval(interval);
         }
-      }, 15); // Speed of typing (milliseconds per character)
+      }, 10);
       
-      // Cleanup function to clear interval if component unmounts during typing
-      return () => {
-        if (typingIntervalRef.current) {
-          clearInterval(typingIntervalRef.current);
-        }
-      };
+      return () => clearInterval(interval);
     }
   }, [summary, displayedSummary]);
 
@@ -299,12 +271,6 @@ export default function Case() {
     setZoomLevel(1);
     
     if (caseId) {
-      // Clear summary display while loading
-      setDisplayedSummary(null);
-      setSummary(null);
-      setDetectedObjects([]);
-      setCrimeType(null);
-      
       checkExistingSummary(image.id).catch(error => {
         console.error("Error loading existing summary:", error);
       });
@@ -334,9 +300,8 @@ export default function Case() {
     try {
       const existingSummary = await forensicService.getImageSummary(caseId, imageId);
       if (existingSummary) {
-        console.log("Found existing summary:", existingSummary);
         setSummary(existingSummary.summary);
-        setDisplayedSummary("");  // Start empty for typing effect
+        setDisplayedSummary("");
         setDetectedObjects(existingSummary.objects_detected || []);
         setCrimeType(existingSummary.crime_type);
         return true;
@@ -361,24 +326,6 @@ export default function Case() {
 
   const generateSummary = async () => {
     if (!selectedImage || !caseId) return;
-    
-    // Check ML API connection first
-    try {
-      const isConnected = await checkMlApiConnection();
-      if (!isConnected) {
-        setConnectionError(`Cannot connect to ML service at ${FLASK_API_URL}. Please ensure it's running and accessible.`);
-        toast({
-          title: "ML Service Unavailable",
-          description: `Cannot connect to ML service at ${FLASK_API_URL}. Please ensure it's running.`,
-          variant: "destructive"
-        });
-        return;
-      }
-    } catch (error) {
-      console.error("Error checking ML API connection:", error);
-      setConnectionError(`Error connecting to ML service: ${error.message}`);
-      return;
-    }
     
     setIsSummarizing(true);
     setSummary(null);
