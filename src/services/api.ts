@@ -104,7 +104,7 @@ export const forensicService = {
           objects_detected: response.data.objects_detected,
           summary: response.data.summary,
           created_at: new Date().toISOString(),
-        } as ForensicSummary)
+        })
         .select();
 
       if (summaryError) {
@@ -134,7 +134,7 @@ export const forensicService = {
       throw error;
     }
 
-    return data as ForensicSummary;
+    return data as unknown as ForensicSummary;
   },
   
   // Generate report for entire case
@@ -153,7 +153,7 @@ export const forensicService = {
           case_id: caseId,
           report: response.data.report,
           created_at: new Date().toISOString(),
-        } as ForensicReport)
+        })
         .select();
 
       if (reportError) {
@@ -179,7 +179,7 @@ export const forensicService = {
       throw error;
     }
 
-    return (data || []) as ForensicSummary[];
+    return (data || []) as unknown as ForensicSummary[];
   },
   
   // Get case report from Supabase
@@ -199,7 +199,7 @@ export const forensicService = {
       throw error;
     }
 
-    return data as ForensicReport;
+    return data as unknown as ForensicReport;
   }
 };
 
