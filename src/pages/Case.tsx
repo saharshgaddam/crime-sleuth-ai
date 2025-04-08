@@ -104,6 +104,8 @@ export default function Case() {
   const [detectedObjects, setDetectedObjects] = useState<string[]>([]);
   const [crimeType, setCrimeType] = useState<string | null>(null);
   const { toast } = useToast();
+  
+  const FLASK_API_URL = import.meta.env.VITE_FLASK_API_URL || 'http://localhost:8000';
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -311,7 +313,7 @@ export default function Case() {
         description: "There was a problem analyzing this image. Check the console for details.",
         variant: "destructive"
       });
-      setSummary("Failed to generate summary. Please ensure the Flask API server is running at " + FLASK_API_URL);
+      setSummary(`Failed to generate summary. Please ensure the Flask API server is running at ${FLASK_API_URL}`);
     } finally {
       setIsSummarizing(false);
     }
