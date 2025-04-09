@@ -1,94 +1,13 @@
+
 import axios from 'axios';
 import { toast } from "sonner";
 import { supabase } from '@/integrations/supabase/client';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-// Read Flask API URL from environment variables
 const FLASK_API_URL = import.meta.env.VITE_FLASK_API_URL || 'http://localhost:8000';
 
-// Create axios instance
-const api = axios.create({
-  baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  withCredentials: true, // Important for cookies/sessions
-});
-
-// Add a request interceptor to add auth token to requests
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-// Add a response interceptor for error handling
-api.interceptors.response.use(
-  (response) => {
-    return response;
-  },
-  (error) => {
-    const message = 
-      error.response?.data?.error ||
-      error.message ||
-      'An unknown error occurred';
-    
-    toast.error(message);
-    
-    if (error.response?.status === 401) {
-      // Unauthorized - clear token and redirect to login
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/signin';
-    }
-    
-    return Promise.reject(error);
-  }
-);
-
-// Create a separate axios instance for ML API calls with better error handling
-const mlApi = axios.create({
-  baseURL: FLASK_API_URL,
-  timeout: 30000, // 30-second timeout for ML operations which might take longer
-  headers: {
-    'Content-Type': 'application/json',
-  }
-});
-
-// Add response interceptor for ML API with improved error messages
-mlApi.interceptors.response.use(
-  (response) => {
-    return response;
-  },
-  (error) => {
-    console.error("ML API Error:", error);
-    let message = "Failed to connect to ML service";
-    
-    if (error.code === 'ECONNABORTED') {
-      message = "ML operation timed out. The server might be processing a large request.";
-    } else if (error.code === 'ERR_NETWORK' || !error.response) {
-      message = `Cannot connect to ML server at ${FLASK_API_URL}. Please ensure the ML service is running.`;
-    } else if (error.response) {
-      message = error.response.data?.error || `ML service error: ${error.response.status}`;
-    }
-    
-    toast.error(message);
-    return Promise.reject({
-      ...error,
-      userMessage: message
-    });
-  }
-);
-
-// Define TypeScript types for our Supabase data
-type ForensicSummary = {
+// Define TypeScript types for our data
+export type ForensicSummary = {
   id?: string;
   case_id: string;
   image_id: string;
@@ -98,30 +17,151 @@ type ForensicSummary = {
   created_at?: string | null;
 };
 
-type ForensicReport = {
+export type ForensicReport = {
   id?: string;
   case_id: string;
   report: string | null;
   created_at?: string | null;
 };
 
-// Forensic Flask API services with Supabase integration
-export const forensicService = {
+export type UserProfile = {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+};
+
+export type CaseData = {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  assigned_to: string[];
+};
+
+export type EvidenceItem = {
+  id: string;
+  case_id: string;
+  name: string;
+  type: string;
+  description: string;
+  created_at: string;
+  updated_at: string;
+  file_url?: string;
+};
+
+// API client setup
+const createAPIClient = () => {
+  // Create axios instance
+  const api = axios.create({
+    baseURL: API_URL,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    withCredentials: true, // Important for cookies/sessions
+  });
+
+  // Add a request interceptor to add auth token to requests
+  api.interceptors.request.use(
+    (config) => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    },
+    (error) => {
+      return Promise.reject(error);
+    }
+  );
+
+  // Add a response interceptor for error handling
+  api.interceptors.response.use(
+    (response) => {
+      return response;
+    },
+    (error) => {
+      const message = 
+        error.response?.data?.error ||
+        error.message ||
+        'An unknown error occurred';
+      
+      toast.error(message);
+      
+      if (error.response?.status === 401) {
+        // Unauthorized - clear token and redirect to login
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/signin';
+      }
+      
+      return Promise.reject(error);
+    }
+  );
+
+  return api;
+};
+
+// Create a separate axios instance for ML API calls with better error handling
+const createMLClient = () => {
+  const mlApi = axios.create({
+    baseURL: API_URL,  // Use backend proxy, not direct to ML API
+    timeout: 30000, // 30-second timeout for ML operations which might take longer
+    headers: {
+      'Content-Type': 'application/json',
+    }
+  });
+
+  // Add response interceptor for ML API with improved error messages
+  mlApi.interceptors.response.use(
+    (response) => {
+      return response;
+    },
+    (error) => {
+      console.error("ML API Error:", error);
+      let message = "Failed to connect to ML service";
+      
+      if (error.code === 'ECONNABORTED') {
+        message = "ML operation timed out. The server might be processing a large request.";
+      } else if (error.code === 'ERR_NETWORK' || !error.response) {
+        message = `Cannot connect to ML service. Please ensure the ML service is running.`;
+      } else if (error.response) {
+        message = error.response.data?.error || `ML service error: ${error.response.status}`;
+      }
+      
+      toast.error(message);
+      return Promise.reject({
+        ...error,
+        userMessage: message
+      });
+    }
+  );
+
+  return mlApi;
+};
+
+const api = createAPIClient();
+const mlApi = createMLClient();
+
+// Forensic service implementation
+const forensicService = {
   // Generate summary for an image
   generateImageSummary: async (caseId: string, imageId: string, imageFile: File | Blob) => {
     try {
       console.log(`Generating summary for case ${caseId}, image ${imageId}`);
       
-      // Create FormData for Flask API
+      // Create FormData for API
       const formData = new FormData();
       formData.append('case_id', caseId);
       formData.append('image_id', imageId);
       formData.append('image', imageFile);
 
-      // Call Flask API for image analysis with improved error handling
-      console.log(`Calling Flask API at ${FLASK_API_URL}/generate-summary`);
+      // Call backend proxy API for image analysis with improved error handling
+      console.log('Calling ML API via backend proxy');
       const response = await mlApi.post(
-        `/generate-summary`,
+        '/ml/generate-summary',
         formData,
         {
           headers: {
@@ -130,7 +170,7 @@ export const forensicService = {
         }
       );
       
-      console.log('Flask API response:', response.data);
+      console.log('ML API response:', response.data);
 
       if (!response.data.summary) {
         console.warn('Warning: Received empty summary from API');
@@ -204,13 +244,13 @@ export const forensicService = {
     try {
       console.log(`Generating case report for case ${caseId}`);
       
-      // Call Flask API for case report generation with improved error handling
+      // Call backend proxy API for case report generation with improved error handling
       const response = await mlApi.post(
-        `/generate-case-report`,
+        '/ml/generate-case-report',
         { case_id: caseId }
       );
 
-      console.log('Flask API response for case report:', response.data);
+      console.log('ML API response for case report:', response.data);
 
       // Store report in Supabase
       const { data: reportData, error: reportError } = await supabase
@@ -285,7 +325,7 @@ export const forensicService = {
 };
 
 // Auth services
-export const authService = {
+const authService = {
   register: async (userData: any) => {
     const response = await api.post('/auth/register', userData);
     if (response.data.success) {
@@ -324,7 +364,7 @@ export const authService = {
 };
 
 // Case services
-export const caseService = {
+const caseService = {
   getCases: async (params?: any) => {
     const response = await api.get('/cases', { params });
     return response.data;
@@ -348,7 +388,7 @@ export const caseService = {
 };
 
 // Evidence services
-export const evidenceService = {
+const evidenceService = {
   getEvidenceForCase: async (caseId: string) => {
     const response = await api.get(`/cases/${caseId}/evidence`);
     return response.data;
@@ -376,7 +416,7 @@ export const evidenceService = {
 };
 
 // User services
-export const userService = {
+const userService = {
   getUsers: async () => {
     const response = await api.get('/users');
     return response.data;

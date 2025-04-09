@@ -82,6 +82,7 @@ app.post('/api/ml/generate-summary', upload.single('image'), async (req, res) =>
     const blob = new Blob([req.file.buffer], { type: req.file.mimetype });
     formData.append('image', blob, req.file.originalname);
 
+    console.log('Proxying image analysis request to ML service:', req.body.case_id, req.body.image_id);
     const response = await axios.post(`${FLASK_API_URL}/generate-summary`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
@@ -89,7 +90,15 @@ app.post('/api/ml/generate-summary', upload.single('image'), async (req, res) =>
       timeout: 30000, // 30-second timeout
     });
 
-    res.json(response.data);
+    // Process the response - ensure summary doesn't have markdown format issues
+    const responseData = {
+      ...response.data,
+      summary: response.data.summary || "No analysis available",
+      crime_type: response.data.crime_type || "Unknown",
+      objects_detected: response.data.objects_detected || []
+    };
+
+    res.json(responseData);
   } catch (error) {
     console.error('Error proxying to ML service:', error.message);
     res.status(500).json({ 
@@ -103,6 +112,7 @@ app.post('/api/ml/generate-summary', upload.single('image'), async (req, res) =>
 // ML API Proxy - Generate Case Report
 app.post('/api/ml/generate-case-report', async (req, res) => {
   try {
+    console.log('Proxying case report request to ML service:', req.body.case_id);
     const response = await axios.post(`${FLASK_API_URL}/generate-case-report`, req.body, {
       timeout: 30000, // 30-second timeout
     });
