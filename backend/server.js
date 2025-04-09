@@ -50,7 +50,7 @@ mongoose.connect(process.env.MONGODB_URI)
   .catch(err => console.error('MongoDB connection error:', err));
 
 // Create a proxy for ML API calls
-const FLASK_API_URL = process.env.FLASK_API_URL || 'http://localhost:8000';
+const FLASK_API_URL = process.env.FLASK_API_URL || 'http://127.0.0.1:8000';
 
 // ML API Health Check
 app.get('/api/ml/health', async (req, res) => {
