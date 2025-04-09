@@ -13,13 +13,16 @@ import { useCaseData } from "./hooks/useCaseData";
 import { useCaseAnalytics } from "./hooks/useCaseAnalytics";
 import { useCaseFileUpload } from "./hooks/useCaseFileUpload";
 
+type ActiveTab = "sources" | "chat" | "studio";
+
 export default function Case() {
   const { caseId } = useParams();
   const [caseName, setCaseName] = useState(`Case #${caseId?.replace("case-", "")}`);
   const [description, setDescription] = useState("");
-  const [activeTab, setActiveTab] = useState("sources");
+  const [activeTab, setActiveTab] = useState<ActiveTab>("sources");
   const [selectedImage, setSelectedImage] = useState(null);
   const [connectionError, setConnectionError] = useState(null);
+  const { toast } = useToast();
 
   const { 
     uploadedImages, 
@@ -28,7 +31,9 @@ export default function Case() {
     handleDeleteDocument,
     filteredSources,
     sourceType,
-    setSourceType
+    setSourceType,
+    setUploadedImages,
+    setUploadedDocs
   } = useCaseData();
 
   const {
@@ -40,7 +45,11 @@ export default function Case() {
   const {
     isUploading,
     handleFileUpload
-  } = useCaseFileUpload(setSelectedImage);
+  } = useCaseFileUpload({
+    setUploadedImages,
+    setUploadedDocs,
+    setSelectedImage
+  });
 
   const getTotalSourceCount = () => {
     return uploadedImages.length + uploadedDocs.length;
@@ -103,7 +112,7 @@ export default function Case() {
           setSourceType={setSourceType}
           isUploading={isUploading}
           handleFileUpload={handleFileUpload}
-          filteredSources={filteredSources}
+          filteredSources={filteredSources()}
           selectedImage={selectedImage}
           handleSelectImage={handleSelectImage}
           handleDeleteImage={handleDeleteImage}

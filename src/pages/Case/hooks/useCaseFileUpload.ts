@@ -7,12 +7,19 @@ type UploadedImage = {
   src: string;
   name: string;
   date: Date;
-  type?: "image";
 };
 
-export function useCaseFileUpload(
-  setSelectedImage: (image: UploadedImage | null) => void
-) {
+interface UseCaseFileUploadProps {
+  setUploadedImages: React.Dispatch<React.SetStateAction<UploadedImage[]>>;
+  setUploadedDocs: React.Dispatch<React.SetStateAction<any[]>>;
+  setSelectedImage: React.Dispatch<React.SetStateAction<UploadedImage | null>>;
+}
+
+export function useCaseFileUpload({ 
+  setUploadedImages, 
+  setUploadedDocs, 
+  setSelectedImage 
+}: UseCaseFileUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
 
@@ -47,17 +54,18 @@ export function useCaseFileUpload(
     
     try {
       const newImages: UploadedImage[] = [];
-      const newDocs = [];
+      const newDocs: any[] = [];
       
       for (const file of Array.from(files)) {
         if (imageTypes.includes(file.type)) {
           const result = await readFileAsDataURL(file);
-          newImages.push({
+          const newImage = {
             id: generateId(),
             src: result,
             name: file.name,
             date: new Date()
-          });
+          };
+          newImages.push(newImage);
         } else if (docTypes.includes(file.type)) {
           newDocs.push({
             id: generateId(),
@@ -70,6 +78,10 @@ export function useCaseFileUpload(
       
       if (newImages.length > 0) {
         setUploadedImages(prev => [...prev, ...newImages]);
+        // Select the first uploaded image
+        if (newImages[0]) {
+          setSelectedImage(newImages[0]);
+        }
       }
       
       if (newDocs.length > 0) {
