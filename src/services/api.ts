@@ -132,6 +132,11 @@ export const forensicService = {
       
       console.log('Flask API response:', response.data);
 
+      if (!response.data.summary) {
+        console.warn('Warning: Received empty summary from API');
+        response.data.summary = "No detailed analysis available for this image.";
+      }
+
       // Store summary result in Supabase
       console.log('Storing summary in Supabase');
       const { data: summaryData, error: summaryError } = await supabase
@@ -139,8 +144,8 @@ export const forensicService = {
         .upsert({
           case_id: caseId,
           image_id: imageId,
-          crime_type: response.data.crime_type,
-          objects_detected: response.data.objects_detected,
+          crime_type: response.data.crime_type || "Unknown",
+          objects_detected: response.data.objects_detected || [],
           summary: response.data.summary,
           created_at: new Date().toISOString(),
         })
@@ -177,6 +182,16 @@ export const forensicService = {
         throw error;
       }
 
+      // Make sure we don't return null values for important fields
+      if (data) {
+        return {
+          ...data,
+          summary: data.summary || "No detailed analysis available for this image.",
+          objects_detected: data.objects_detected || [],
+          crime_type: data.crime_type || "Unknown"
+        } as ForensicSummary;
+      }
+      
       return data as unknown as ForensicSummary;
     } catch (error) {
       console.error('Error getting image summary:', error);
