@@ -1,5 +1,5 @@
 
-import { LayoutGrid, Microscope, Fingerprint, Camera, FileText, BarChart3, MessageSquare, Scroll, Book, Customize, Plus, Info } from "lucide-react";
+import { LayoutGrid, Microscope, Fingerprint, Camera, FileText, BarChart3, MessageSquare, Scroll, Book, Plus, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
@@ -77,7 +77,7 @@ export default function StudioPanel({
             
             <div className="grid grid-cols-2 gap-2">
               <Button className="justify-start" variant="outline" size="sm">
-                <Customize className="w-4 h-4 mr-2" />
+                <CustomizeIcon className="w-4 h-4 mr-2" />
                 Customize
               </Button>
               <Button className="justify-start" size="sm" onClick={analyzeEvidence} disabled={analyzing}>
@@ -195,7 +195,8 @@ export default function StudioPanel({
   );
 }
 
-function Customize({ className }: { className?: string }) {
+// Renamed from Customize to CustomizeIcon to make it clearer this is a custom component
+function CustomizeIcon({ className }: { className?: string }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
