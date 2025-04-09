@@ -5,12 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import API from "@/services/api";
+import { UploadedImage } from "@/pages/Case/hooks/useCaseFileUpload";
 
 type ActiveTab = "sources" | "chat" | "studio";
 
 interface ImageAnalysisPanelProps {
   activeTab: ActiveTab;
-  selectedImage: any;
+  selectedImage: UploadedImage | null;
   closeImagePreview: () => void;
   caseId?: string;
   getTotalSourceCount: () => number;
@@ -21,7 +22,7 @@ interface ImageAnalysisPanelProps {
   handleFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
 }
 
-const ImageAnalysisPanel = ({
+export function ImageAnalysisPanel({
   activeTab,
   selectedImage,
   closeImagePreview,
@@ -32,11 +33,10 @@ const ImageAnalysisPanel = ({
   connectionError,
   setConnectionError,
   handleFileUpload
-}: ImageAnalysisPanelProps) => {
+}: ImageAnalysisPanelProps) {
   const [summary, setSummary] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [question, setQuestion] = useState<string>("");
-  const [imageUploadLoading, setImageUploadLoading] = useState<boolean>(false);
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const { toast } = useToast();
 
@@ -67,7 +67,7 @@ const ImageAnalysisPanel = ({
   const checkMLServiceConnection = async () => {
     try {
       const response = await API.forensic.checkMLServiceHealth();
-      if (response.status === 'connected') {
+      if (response && response.status === 'connected') {
         setConnectionError(null);
       } else {
         setConnectionError('ML service is not available');
@@ -95,6 +95,7 @@ const ImageAnalysisPanel = ({
       formData.append('image_id', selectedImage.id);
       formData.append('image', file);
       
+      // Use the forensic.analyzeImage method
       const analysisResult = await API.forensic.analyzeImage(formData);
       
       // Process and display summary with proper markdown formatting
@@ -300,6 +301,6 @@ const ImageAnalysisPanel = ({
       )}
     </div>
   );
-};
+}
 
 export default ImageAnalysisPanel;

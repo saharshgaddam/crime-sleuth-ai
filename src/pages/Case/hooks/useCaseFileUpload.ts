@@ -2,16 +2,23 @@
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 
-type UploadedImage = {
+export type UploadedImage = {
   id: string;
   src: string;
   name: string;
   date: Date;
 };
 
+export type UploadedDoc = {
+  id: string;
+  name: string;
+  type: string;
+  date: Date;
+};
+
 interface UseCaseFileUploadProps {
   setUploadedImages: React.Dispatch<React.SetStateAction<UploadedImage[]>>;
-  setUploadedDocs: React.Dispatch<React.SetStateAction<any[]>>;
+  setUploadedDocs: React.Dispatch<React.SetStateAction<UploadedDoc[]>>;
   setSelectedImage: React.Dispatch<React.SetStateAction<UploadedImage | null>>;
 }
 
@@ -54,7 +61,7 @@ export function useCaseFileUpload({
     
     try {
       const newImages: UploadedImage[] = [];
-      const newDocs: any[] = [];
+      const newDocs: UploadedDoc[] = [];
       
       for (const file of Array.from(files)) {
         if (imageTypes.includes(file.type)) {

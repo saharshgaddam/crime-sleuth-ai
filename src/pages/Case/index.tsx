@@ -4,14 +4,13 @@ import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Share, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import API from "@/services/api";
 import SourcesPanel from "@/components/case/SourcesPanel";
-import ImageAnalysisPanel from "@/components/case/ImageAnalysisPanel";
+import { ImageAnalysisPanel } from "@/components/case/ImageAnalysisPanel";
 import StudioPanel from "@/components/case/StudioPanel";
 import MobileNavigation from "@/components/case/MobileNavigation";
 import { useCaseData } from "./hooks/useCaseData";
 import { useCaseAnalytics } from "./hooks/useCaseAnalytics";
-import { useCaseFileUpload } from "./hooks/useCaseFileUpload";
+import { useCaseFileUpload, UploadedImage } from "./hooks/useCaseFileUpload";
 
 type ActiveTab = "sources" | "chat" | "studio";
 
@@ -20,8 +19,8 @@ export default function Case() {
   const [caseName, setCaseName] = useState(`Case #${caseId?.replace("case-", "")}`);
   const [description, setDescription] = useState("");
   const [activeTab, setActiveTab] = useState<ActiveTab>("sources");
-  const [selectedImage, setSelectedImage] = useState(null);
-  const [connectionError, setConnectionError] = useState(null);
+  const [selectedImage, setSelectedImage] = useState<UploadedImage | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const { toast } = useToast();
 
   const { 
@@ -55,7 +54,7 @@ export default function Case() {
     return uploadedImages.length + uploadedDocs.length;
   };
 
-  const handleSelectImage = (image) => {
+  const handleSelectImage = (image: UploadedImage) => {
     setSelectedImage(image);
     setActiveTab("chat");
   };

@@ -179,6 +179,32 @@ const forensicService = {
       console.error('Error getting case report:', error);
       throw error;
     }
+  },
+  
+  // Check ML service health
+  checkMLServiceHealth: async () => {
+    try {
+      console.log('Checking ML service health...');
+      const response = await mlApi.get('/ml/health');
+      return response.data;
+    } catch (error) {
+      console.error('Error checking ML service health:', error);
+      throw error;
+    }
+  },
+  
+  // Analyze image directly (wrapper around generateImageSummary for consistency)
+  analyzeImage: async (formData: FormData) => {
+    try {
+      const caseId = formData.get('case_id') as string;
+      const imageId = formData.get('image_id') as string;
+      const imageFile = formData.get('image') as File;
+      
+      return await forensicService.generateImageSummary(caseId, imageId, imageFile);
+    } catch (error) {
+      console.error('Error in analyzeImage wrapper:', error);
+      throw error;
+    }
   }
 };
 
