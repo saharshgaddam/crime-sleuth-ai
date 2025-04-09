@@ -303,4 +303,5 @@ export function ImageAnalysisPanel({
   );
 }
 
+// Make sure to export as default as well
 export default ImageAnalysisPanel;

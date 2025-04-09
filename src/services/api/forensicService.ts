@@ -181,7 +181,7 @@ const forensicService = {
     }
   },
   
-  // Check ML service health
+  // Check ML service health - this was missing!
   checkMLServiceHealth: async () => {
     try {
       console.log('Checking ML service health...');
@@ -193,7 +193,7 @@ const forensicService = {
     }
   },
   
-  // Analyze image directly (wrapper around generateImageSummary for consistency)
+  // Analyze image directly (wrapper around generateImageSummary for consistency) - this was missing!
   analyzeImage: async (formData: FormData) => {
     try {
       const caseId = formData.get('case_id') as string;

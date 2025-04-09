@@ -5,7 +5,7 @@ import { ArrowLeft, Share, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import SourcesPanel from "@/components/case/SourcesPanel";
-import { ImageAnalysisPanel } from "@/components/case/ImageAnalysisPanel";
+import ImageAnalysisPanel from "@/components/case/ImageAnalysisPanel";
 import StudioPanel from "@/components/case/StudioPanel";
 import MobileNavigation from "@/components/case/MobileNavigation";
 import { useCaseData } from "./hooks/useCaseData";
