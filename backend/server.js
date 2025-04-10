@@ -10,6 +10,7 @@ const authRoutes = require('./routes/auth');
 const caseRoutes = require('./routes/cases');
 const userRoutes = require('./routes/users');
 const evidenceRoutes = require('./routes/evidence');
+const fileUpload = require('express-fileupload');
 
 dotenv.config();
 
@@ -23,6 +24,7 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+app.use(fileUpload()); // Add file upload middleware
 
 // Session middleware
 app.use(session({
@@ -48,14 +50,18 @@ mongoose.connect(process.env.MONGODB_URI)
 app.post('/api/ml/generate-summary', async (req, res) => {
   try {
     console.log('Proxying request to ML API for summary generation');
+    
+    // Create FormData for the request
     const formData = new FormData();
     
-    // Copy all fields from the request to the formData
-    Object.keys(req.body).forEach(key => {
-      if (key !== 'image') {
-        formData.append(key, req.body[key]);
-      }
-    });
+    // Add case_id and image_id to formData
+    if (req.body.case_id) {
+      formData.append('case_id', req.body.case_id);
+    }
+    
+    if (req.body.image_id) {
+      formData.append('image_id', req.body.image_id);
+    }
     
     // Handle file if present
     if (req.files && req.files.image) {
@@ -66,6 +72,8 @@ app.post('/api/ml/generate-summary', async (req, res) => {
       });
     }
     
+    // Call the Flask API
+    console.log('Calling Flask API at', `${FLASK_API_URL}/generate-summary`);
     const response = await axios.post(
       `${FLASK_API_URL}/generate-summary`,
       formData,
@@ -77,7 +85,7 @@ app.post('/api/ml/generate-summary', async (req, res) => {
       }
     );
     
-    console.log('ML API Response:', response.data);
+    console.log('Flask API response:', response.data);
     res.status(200).json(response.data);
   } catch (error) {
     console.error('Error proxying to ML API:', error);
