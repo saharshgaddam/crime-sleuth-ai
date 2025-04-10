@@ -1,3 +1,4 @@
+
 import axios from 'axios';
 import { toast } from "sonner";
 import { supabase } from '@/integrations/supabase/client';
@@ -75,7 +76,7 @@ mlApi.interceptors.response.use(
     if (error.code === 'ECONNABORTED') {
       message = "ML operation timed out. The server might be processing a large request.";
     } else if (error.code === 'ERR_NETWORK' || !error.response) {
-      message = `Cannot connect to ML server. Please ensure the ML service is running at ${FLASK_API_URL}.`;
+      message = `Cannot connect to ML server. Please ensure the ML service is running.`;
     } else if (error.response) {
       message = error.response.data?.error || `ML service error: ${error.response.status}`;
     }
@@ -109,8 +110,8 @@ type ForensicReport = {
 // Helper function to check if ML service is available
 const checkMLServiceHealth = async () => {
   try {
-    const response = await api.get('/ml/health');
-    return response.data.status === 'ML service is connected';
+    await api.get('/ml/health');
+    return true;
   } catch (error) {
     console.error('ML service health check failed:', error);
     return false;
@@ -132,7 +133,7 @@ export const forensicService = {
       return {
         isAvailable: false,
         message: error.response?.data?.status || 'ML service is unreachable',
-        details: error.response?.data?.details || `Please ensure your Flask API is running at ${FLASK_API_URL}`
+        details: error.response?.data?.details || 'Please ensure your Flask API is running'
       };
     }
   },
@@ -141,6 +142,12 @@ export const forensicService = {
   generateImageSummary: async (caseId: string, imageId: string, imageFile: File | Blob) => {
     try {
       console.log(`Generating summary for case ${caseId}, image ${imageId}`);
+      
+      // Check ML service health first
+      const healthCheck = await checkMLServiceHealth();
+      if (!healthCheck) {
+        throw new Error('ML service is currently unavailable. Please ensure your Flask API is running.');
+      }
       
       // Create FormData for API
       const formData = new FormData();
@@ -184,7 +191,33 @@ export const forensicService = {
       return response.data;
     } catch (error) {
       console.error('Error generating summary:', error);
-      throw error;
+      
+      // Provide fallback data in case of error (temporary solution)
+      const fallbackSummary = {
+        crime_type: "Unknown (ML service unavailable)",
+        objects_detected: ["ML service unavailable"],
+        summary: "Unable to generate summary. The ML service is currently unavailable. Please ensure your Flask API is running at " + FLASK_API_URL
+      };
+      
+      // Store fallback data in Supabase so the user still sees something
+      try {
+        await supabase
+          .from('forensic_summaries')
+          .upsert({
+            case_id: caseId,
+            image_id: imageId,
+            crime_type: fallbackSummary.crime_type,
+            objects_detected: fallbackSummary.objects_detected,
+            summary: fallbackSummary.summary,
+            created_at: new Date().toISOString(),
+          });
+      } catch (storageError) {
+        console.error('Error storing fallback summary:', storageError);
+      }
+      
+      // Rethrow with user-friendly message
+      const userMessage = error.userMessage || "Failed to generate image summary. Please ensure your Flask API is running.";
+      throw new Error(userMessage);
     }
   },
   
@@ -216,6 +249,12 @@ export const forensicService = {
     try {
       console.log(`Generating case report for case ${caseId}`);
       
+      // Check ML service health first
+      const healthCheck = await checkMLServiceHealth();
+      if (!healthCheck) {
+        throw new Error('ML service is currently unavailable. Please ensure your Flask API is running.');
+      }
+      
       // Call Flask API for case report generation through our backend proxy
       const response = await mlApi.post(
         '/ml/generate-case-report',
@@ -242,7 +281,28 @@ export const forensicService = {
       return response.data;
     } catch (error) {
       console.error('Error generating case report:', error);
-      throw error;
+      
+      // Provide fallback data in case of error (temporary solution)
+      const fallbackReport = {
+        report: "Unable to generate case report. The ML service is currently unavailable. Please ensure your Flask API is running at " + FLASK_API_URL
+      };
+      
+      // Store fallback data in Supabase
+      try {
+        await supabase
+          .from('forensic_reports')
+          .upsert({
+            case_id: caseId,
+            report: fallbackReport.report,
+            created_at: new Date().toISOString(),
+          });
+      } catch (storageError) {
+        console.error('Error storing fallback report:', storageError);
+      }
+      
+      // Rethrow with user-friendly message
+      const userMessage = error.userMessage || "Failed to generate case report. Please ensure your Flask API is running.";
+      throw new Error(userMessage);
     }
   },
   
