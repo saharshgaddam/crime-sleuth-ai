@@ -114,7 +114,7 @@ export function ImageAnalysisPanel({
     } catch (error) {
       console.error("Error in generateSummary:", error);
       
-      const errorMessage = error.message || `Failed to generate summary. Please ensure the ML server is running at ${FLASK_API_URL}`;
+      const errorMessage = error.userMessage || error.message || `Failed to generate summary. Please ensure the ML server is running at ${FLASK_API_URL}`;
       setConnectionError(errorMessage);
       setSummary(null);
       setDisplayedSummary(null);
