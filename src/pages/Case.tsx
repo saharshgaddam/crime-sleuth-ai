@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
@@ -63,15 +62,13 @@ export default function Case() {
   const [selectedImage, setSelectedImage] = useState<UploadedImage | null>(null);
   const { toast } = useToast();
   
-  const FLASK_API_URL = import.meta.env.VITE_FLASK_API_URL || 'http://localhost:8000';
+  const FLASK_API_URL = import.meta.env.VITE_FLASK_API_URL || 'https://crimesleuth-ml-api.onrender.com';
 
   useEffect(() => {
     const checkApiConnection = async () => {
       try {
-        await fetch(`${FLASK_API_URL}/health`, { 
-          method: 'HEAD',
-          mode: 'no-cors'
-        });
+        const healthStatus = await forensicService.checkHealth();
+        console.log("ML API health status:", healthStatus);
       } catch (error) {
         console.error("Cannot connect to ML API", error);
       }
