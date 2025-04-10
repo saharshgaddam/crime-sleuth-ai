@@ -300,7 +300,6 @@ export default function Case() {
     try {
       const existingSummary = await forensicService.getImageSummary(caseId, imageId);
       if (existingSummary) {
-        console.log("Found existing summary:", existingSummary.summary);
         setSummary(existingSummary.summary);
         setDisplayedSummary("");
         setDetectedObjects(existingSummary.objects_detected || []);
@@ -472,12 +471,6 @@ export default function Case() {
     setDisplayedSummary(null);
     setDetectedObjects([]);
     setCrimeType(null);
-  };
-
-  const sanitizeMarkdown = (text: string) => {
-    if (!text) return '';
-    
-    return text.replace(/\*\*(.*?)\*\*/g, '<span class="font-bold">$1</span>');
   };
 
   return (
@@ -769,17 +762,10 @@ export default function Case() {
                           </div>
                         )}
                         
-                        <div className="prose prose-sm max-w-none">
-                          {displayedSummary.split('\n').map((paragraph, i) => {
-                            const processedParagraph = sanitizeMarkdown(paragraph);
-                            return (
-                              <div 
-                                key={i} 
-                                className={i > 0 ? "mt-2" : ""}
-                                dangerouslySetInnerHTML={{ __html: processedParagraph }}
-                              />
-                            );
-                          })}
+                        <div className="prose prose-sm">
+                          {displayedSummary.split('\n').map((paragraph, i) => (
+                            <p key={i} className={i > 0 ? "mt-2" : ""}>{paragraph}</p>
+                          ))}
                           {isSummarizing && <span className="animate-pulse">|</span>}
                         </div>
                       </CardContent>
