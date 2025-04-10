@@ -1,6 +1,5 @@
-
 import { Link } from "react-router-dom";
-import { Fingerprint, Twitter, Facebook, Instagram, GitHub, Linkedin } from "lucide-react";
+import { Fingerprint, Twitter, Facebook, Instagram, Github, Linkedin } from "lucide-react";
 
 export function Footer() {
   return (
@@ -26,7 +25,7 @@ export function Footer() {
                 <Instagram className="h-5 w-5" />
               </a>
               <a href="https://github.com" target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground">
-                <GitHub className="h-5 w-5" />
+                <Github className="h-5 w-5" />
               </a>
               <a href="https://linkedin.com" target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground">
                 <Linkedin className="h-5 w-5" />
