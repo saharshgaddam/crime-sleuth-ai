@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -42,7 +43,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { UserDropdown } from "@/components/UserDropdown";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 
 // Define the case type
@@ -134,24 +135,40 @@ export default function Dashboard() {
       return;
     }
 
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "Authentication Error",
+        description: "You must be logged in to create a case.",
+      });
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from('cases')
         .insert({
           title: newCaseTitle,
           description: newCaseType || "Unspecified",
-          status: "New",
-          user_id: user?.id
+          status: "open", // This matches the enum values in the Case schema
+          user_id: user.id
         })
         .select();
         
-      if (error) throw error;
+      if (error) {
+        console.error("Error creating case:", error);
+        throw error;
+      }
+      
+      if (!data || data.length === 0) {
+        throw new Error("No data returned from case creation");
+      }
       
       const newCase = {
         id: data[0].id,
         title: data[0].title,
         date: data[0].created_at,
-        status: data[0].status || 'New',
+        status: data[0].status || 'open',
         type: data[0].description || 'Unspecified',
         lastUpdated: data[0].updated_at
       };
@@ -169,6 +186,7 @@ export default function Dashboard() {
       // Navigate to the new case
       navigate(`/case/${newCase.id}`);
     } catch (error: any) {
+      console.error("Full error details:", error);
       toast({
         variant: "destructive",
         title: "Error creating case",
