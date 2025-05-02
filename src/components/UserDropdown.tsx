@@ -1,8 +1,6 @@
 
-// src/components/Navbar.tsx is a read-only file, so we'll need to create a new UserDropdown component that can be used in the protected routes
-
-import { Button } from "./ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -10,7 +8,7 @@ import {
   DropdownMenuLabel, 
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
-} from "./ui/dropdown-menu";
+} from "@/components/ui/dropdown-menu";
 import { User, Settings, LogOut } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";

@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from "sonner";
@@ -9,6 +10,7 @@ interface UserProfile {
   name: string;
   email: string;
   role: string;
+  two_factor_enabled?: boolean;
 }
 
 interface AuthContextType {
@@ -23,6 +25,9 @@ interface AuthContextType {
   updateProfile: (userData: Partial<UserProfile>) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   isAuthenticated: boolean;
+  requestPasswordReset: (email: string) => Promise<void>;
+  sendOtpForLogin: (email: string) => Promise<void>;
+  verifyOtp: (email: string, token: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -95,7 +100,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           _id: supabaseUser.id,
           name: data.name || supabaseUser.user_metadata.name || supabaseUser.user_metadata.full_name || supabaseUser.email?.split('@')[0] || '',
           email: data.email || supabaseUser.email || '',
-          role: data.role || 'investigator'
+          role: data.role || 'investigator',
+          two_factor_enabled: data.two_factor_enabled || false
         });
       }
     } catch (err) {
@@ -108,6 +114,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(true);
       setError(null);
       
+      // Check if user has 2FA enabled
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('two_factor_enabled')
+        .eq('email', email)
+        .maybeSingle();
+      
+      if (profileData?.two_factor_enabled) {
+        // First authenticate with password
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+        
+        if (authError) throw new Error(authError.message);
+        
+        // If password is correct, send OTP
+        const { error: otpError } = await supabase.auth.signInWithOtp({
+          email
+        });
+        
+        if (otpError) throw new Error(otpError.message);
+        
+        // Store email for 2FA verification
+        localStorage.setItem("tempAuthEmail", email);
+        
+        // Redirect to 2FA verification page
+        navigate('/verify-otp');
+        
+        toast.success("Verification code sent to your email");
+        return;
+      }
+      
+      // Regular login without 2FA
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -209,7 +249,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from('profiles')
         .update({
           name: userData.name,
-          role: userData.role
+          role: userData.role,
+          two_factor_enabled: userData.two_factor_enabled
         })
         .eq('id', user._id);
       
@@ -247,6 +288,66 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     }
   };
+  
+  const requestPasswordReset = async (email: string) => {
+    try {
+      setLoading(true);
+      
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/update-password`,
+      });
+      
+      if (error) throw new Error(error.message);
+      
+      toast.success("Password reset link sent to your email");
+    } catch (err: any) {
+      setError(err.message || 'Failed to send password reset link');
+      throw new Error(err.message || 'Failed to send password reset link');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const sendOtpForLogin = async (email: string) => {
+    try {
+      setLoading(true);
+      
+      const { error } = await supabase.auth.signInWithOtp({
+        email
+      });
+      
+      if (error) throw new Error(error.message);
+      
+      toast.success("Verification code sent to your email");
+    } catch (err: any) {
+      setError(err.message || 'Failed to send verification code');
+      throw new Error(err.message || 'Failed to send verification code');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const verifyOtp = async (email: string, token: string) => {
+    try {
+      setLoading(true);
+      
+      const { error } = await supabase.auth.verifyOtp({
+        email,
+        token,
+        type: 'email'
+      });
+      
+      if (error) throw new Error(error.message);
+      
+      toast.success("Verification successful");
+      navigate('/dashboard');
+    } catch (err: any) {
+      setError(err.message || 'Failed to verify code');
+      throw new Error(err.message || 'Failed to verify code');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <AuthContext.Provider 
@@ -261,7 +362,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout, 
         updateProfile, 
         changePassword,
-        isAuthenticated: !!session
+        isAuthenticated: !!session,
+        requestPasswordReset,
+        sendOtpForLogin,
+        verifyOtp
       }}
     >
       {children}

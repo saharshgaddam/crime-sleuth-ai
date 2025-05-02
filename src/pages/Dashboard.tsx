@@ -1,6 +1,6 @@
 
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Fingerprint,
   FolderPlus,
@@ -10,6 +10,7 @@ import {
   Filter,
   ArrowUp,
   ArrowDown,
+  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,44 +42,82 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
+import { UserDropdown } from "@/components/UserDropdown";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/context/AuthContext";
 
-// Sample case data
-const sampleCases = [
-  {
-    id: "case-001",
-    title: "Downtown Robbery Investigation",
-    date: "2023-09-15",
-    status: "In Progress",
-    type: "Robbery",
-    lastUpdated: "2023-09-20",
-  },
-  {
-    id: "case-002",
-    title: "Westside Home Invasion",
-    date: "2023-08-22",
-    status: "Completed",
-    type: "Burglary",
-    lastUpdated: "2023-09-01",
-  },
-  {
-    id: "case-003",
-    title: "River Park Homicide",
-    date: "2023-07-30",
-    status: "In Progress",
-    type: "Homicide",
-    lastUpdated: "2023-09-18",
-  },
-];
+// Define the case type
+interface Case {
+  id: string;
+  title: string;
+  date: string;
+  status: string;
+  type: string;
+  lastUpdated: string;
+}
 
 export default function Dashboard() {
-  const [cases, setCases] = useState(sampleCases);
+  const [cases, setCases] = useState<Case[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [newCaseTitle, setNewCaseTitle] = useState("");
   const [newCaseType, setNewCaseType] = useState("");
   const [sortField, setSortField] = useState("lastUpdated");
   const [sortDirection, setSortDirection] = useState("desc");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    fetchCases();
+  }, [user]);
+
+  const fetchCases = async () => {
+    if (!user) return;
+    
+    try {
+      setIsLoading(true);
+      
+      let query = supabase
+        .from('cases')
+        .select('*')
+        .eq('user_id', user._id);
+      
+      if (sortField === 'lastUpdated') {
+        query = query.order('updated_at', { ascending: sortDirection === 'asc' });
+      } else if (sortField === 'date') {
+        query = query.order('created_at', { ascending: sortDirection === 'asc' });
+      } else {
+        query = query.order(sortField, { ascending: sortDirection === 'asc' });
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) throw error;
+      
+      if (data) {
+        const formattedCases = data.map(caseItem => ({
+          id: caseItem.id,
+          title: caseItem.title,
+          date: caseItem.created_at,
+          status: caseItem.status || 'New',
+          type: caseItem.description || 'Unspecified',
+          lastUpdated: caseItem.updated_at
+        }));
+        
+        setCases(formattedCases);
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error fetching cases",
+        description: error.message,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const filteredCases = cases.filter(
     (c) =>
@@ -86,15 +125,7 @@ export default function Dashboard() {
       c.type.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const sortedCases = [...filteredCases].sort((a, b) => {
-    if (sortDirection === "asc") {
-      return a[sortField as keyof typeof a] > b[sortField as keyof typeof b] ? 1 : -1;
-    } else {
-      return a[sortField as keyof typeof a] < b[sortField as keyof typeof b] ? 1 : -1;
-    }
-  });
-
-  const handleCreateCase = () => {
+  const handleCreateCase = async () => {
     if (!newCaseTitle) {
       toast({
         variant: "destructive",
@@ -104,24 +135,47 @@ export default function Dashboard() {
       return;
     }
 
-    const newCase = {
-      id: `case-${String(cases.length + 1).padStart(3, "0")}`,
-      title: newCaseTitle,
-      date: new Date().toISOString().split("T")[0],
-      status: "New",
-      type: newCaseType || "Unspecified",
-      lastUpdated: new Date().toISOString().split("T")[0],
-    };
+    try {
+      const { data, error } = await supabase
+        .from('cases')
+        .insert({
+          title: newCaseTitle,
+          description: newCaseType || "Unspecified",
+          status: "New",
+          user_id: user?._id
+        })
+        .select();
+        
+      if (error) throw error;
+      
+      const newCase = {
+        id: data[0].id,
+        title: data[0].title,
+        date: data[0].created_at,
+        status: data[0].status || 'New',
+        type: data[0].description || 'Unspecified',
+        lastUpdated: data[0].updated_at
+      };
+      
+      setCases([newCase, ...cases]);
+      setNewCaseTitle("");
+      setNewCaseType("");
+      setIsDialogOpen(false);
 
-    setCases([newCase, ...cases]);
-    setNewCaseTitle("");
-    setNewCaseType("");
-    setIsDialogOpen(false);
-
-    toast({
-      title: "Case Created",
-      description: "Your new case has been created successfully.",
-    });
+      toast({
+        title: "Case Created",
+        description: "Your new case has been created successfully.",
+      });
+      
+      // Navigate to the new case
+      navigate(`/case/${newCase.id}`);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error creating case",
+        description: error.message,
+      });
+    }
   };
 
   const toggleSort = (field: string) => {
@@ -139,11 +193,24 @@ export default function Dashboard() {
       
       <div className="flex-1 container py-8">
         <div className="flex flex-col gap-8">
-          <div className="flex flex-col gap-2">
-            <h1 className="text-3xl font-bold">Case Dashboard</h1>
-            <p className="text-muted-foreground">
-              Manage your forensic investigation cases
-            </p>
+          <div className="flex justify-between items-center">
+            <div className="flex flex-col gap-2">
+              <h1 className="text-3xl font-bold">Case Dashboard</h1>
+              <p className="text-muted-foreground">
+                Manage your forensic investigation cases
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline"
+                onClick={() => navigate('/profile')}
+                className="hidden sm:flex"
+              >
+                <User className="mr-2 h-4 w-4" />
+                My Profile
+              </Button>
+              <UserDropdown />
+            </div>
           </div>
           
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
@@ -234,7 +301,11 @@ export default function Dashboard() {
             </div>
           </div>
           
-          {sortedCases.length === 0 ? (
+          {isLoading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            </div>
+          ) : filteredCases.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <div className="rounded-full bg-muted w-12 h-12 flex items-center justify-center mb-4">
                 <FileText className="h-6 w-6 text-muted-foreground" />
@@ -258,7 +329,7 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {sortedCases.map((c) => (
+              {filteredCases.map((c) => (
                 <Link to={`/case/${c.id}`} key={c.id}>
                   <Card className="h-full transition-shadow hover:shadow-md">
                     <CardHeader>
