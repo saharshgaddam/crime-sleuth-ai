@@ -1,211 +1,226 @@
 
 import { useState } from "react";
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Trash2, FileText, Image, Download, Eye } from "lucide-react";
+import { Trash2, Image, FileText, Eye, Download, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { MarkdownSummary } from "./MarkdownSummary";
+import { supabase } from "@/integrations/supabase/client";
+import { formatDistanceToNow } from "date-fns";
 
 interface EvidenceCardProps {
   evidence: {
     id: string;
     name: string;
     type: string;
-    path: string;
+    description?: string | null;
+    file_path?: string | null;
+    url?: string | null;
     created_at: string;
     case_id: string;
-    url?: string;
   };
   onDelete: (id: string) => void;
-  onView: (evidence: any) => void;
+  summary?: {
+    image_id: string;
+    summary: string | null;
+    crime_type: string | null;
+    objects_detected: string[] | null;
+  } | null;
 }
 
-export function EvidenceCard({ evidence, onDelete, onView }: EvidenceCardProps) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+export function EvidenceCard({ evidence, onDelete, summary }: EvidenceCardProps) {
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
 
-  const isImage = evidence.type.startsWith("image/");
-  const fileExtension = evidence.name.split(".").pop()?.toLowerCase();
-  
   const handleDelete = async () => {
     try {
-      setIsLoading(true);
+      setIsDeleting(true);
       
-      // Delete the file from Supabase Storage
-      const { error: storageError } = await supabase
-        .storage
-        .from('evidence')
-        .remove([evidence.path]);
+      // First delete the file from storage if it exists
+      if (evidence.file_path) {
+        const { error: storageError } = await supabase.storage
+          .from('evidence')
+          .remove([evidence.file_path]);
+        
+        if (storageError) throw storageError;
+      }
       
-      if (storageError) throw storageError;
-      
-      // Delete the record from the database
-      const { error: dbError } = await supabase
-        .from('evidence')
-        .delete()
-        .eq('id', evidence.id);
-      
-      if (dbError) throw dbError;
-      
+      // Then delete the evidence record
       onDelete(evidence.id);
-      toast.success("Evidence deleted successfully");
     } catch (error: any) {
-      console.error("Error deleting evidence:", error);
-      toast.error("Failed to delete evidence");
-    } finally {
-      setIsLoading(false);
+      toast.error(error.message || 'Failed to delete evidence');
+      setIsDeleting(false);
     }
   };
 
   const handleDownload = async () => {
+    if (!evidence.file_path) {
+      toast.error('No file available to download');
+      return;
+    }
+    
     try {
-      setIsLoading(true);
+      setIsDownloading(true);
       
-      const { data, error } = await supabase
-        .storage
+      const { data, error } = await supabase.storage
         .from('evidence')
-        .download(evidence.path);
+        .download(evidence.file_path);
       
       if (error) throw error;
       
       // Create a download link
       const url = URL.createObjectURL(data);
-      const a = document.createElement("a");
+      const a = document.createElement('a');
       a.href = url;
       a.download = evidence.name;
       document.body.appendChild(a);
       a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
       
-      toast.success("Evidence downloaded successfully");
+      // Clean up
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success('File downloaded successfully');
     } catch (error: any) {
-      console.error("Error downloading evidence:", error);
-      toast.error("Failed to download evidence");
+      toast.error(error.message || 'Failed to download file');
     } finally {
-      setIsLoading(false);
+      setIsDownloading(false);
     }
   };
 
-  const handleView = async () => {
-    if (isImage) {
-      try {
-        setIsLoading(true);
-        
-        // Get URL for the image
-        const { data: { publicUrl }, error } = supabase
-          .storage
-          .from('evidence')
-          .getPublicUrl(evidence.path);
-        
-        if (error) throw error;
-        
-        setPreviewUrl(publicUrl);
-        setIsPreviewOpen(true);
-      } catch (error: any) {
-        console.error("Error getting preview URL:", error);
-        toast.error("Failed to preview image");
-      } finally {
-        setIsLoading(false);
-      }
-    } else {
-      onView(evidence);
+  const handleViewImage = async () => {
+    if (!evidence.file_path || !evidence.type.startsWith('image/')) {
+      toast.error('No image available to view');
+      return;
     }
-  };
-
-  const getFileIcon = () => {
-    if (isImage) return <Image className="h-6 w-6 text-blue-500" />;
     
-    switch(fileExtension) {
-      case 'pdf':
-        return <FileText className="h-6 w-6 text-red-500" />;
-      case 'doc':
-      case 'docx':
-        return <FileText className="h-6 w-6 text-blue-600" />;
-      case 'txt':
-        return <FileText className="h-6 w-6 text-gray-500" />;
-      default:
-        return <FileText className="h-6 w-6 text-muted-foreground" />;
+    try {
+      // Get public URL for image
+      const { data, error } = await supabase.storage
+        .from('evidence')
+        .createSignedUrl(evidence.file_path, 3600); // 1 hour expiry
+      
+      if (error) throw error;
+      
+      setImageUrl(data.signedUrl);
+      setIsDialogOpen(true);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to load image');
     }
   };
-  
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
+
+  const isImage = evidence.type.startsWith('image/');
+  const timeAgo = formatDistanceToNow(new Date(evidence.created_at), { addSuffix: true });
 
   return (
     <>
-      <Card className="overflow-hidden">
-        <div className="h-40 flex items-center justify-center bg-muted">
-          {isImage ? (
-            evidence.url ? (
-              <img
-                src={evidence.url}
+      <Card className="w-full h-full">
+        <CardHeader>
+          <div className="flex justify-between items-start">
+            <CardTitle className="truncate">{evidence.name}</CardTitle>
+            <Badge variant="outline">{isImage ? 'Image' : 'Document'}</Badge>
+          </div>
+          {evidence.description && (
+            <CardDescription className="line-clamp-2">{evidence.description}</CardDescription>
+          )}
+        </CardHeader>
+        
+        <CardContent className="space-y-4">
+          {isImage && evidence.url && (
+            <div 
+              className="relative aspect-video bg-muted rounded-md overflow-hidden"
+              onClick={handleViewImage}
+            >
+              <img 
+                src={evidence.url} 
                 alt={evidence.name}
-                className="h-full w-full object-cover"
+                className="object-cover w-full h-full cursor-pointer hover:opacity-90 transition-opacity"
               />
-            ) : (
-              <div className="flex items-center justify-center h-full w-full">
-                <Image className="h-16 w-16 text-muted-foreground opacity-50" />
-              </div>
-            )
-          ) : (
-            <div className="flex flex-col items-center justify-center">
-              {getFileIcon()}
-              <span className="text-xs mt-2 text-muted-foreground uppercase">
-                {fileExtension}
-              </span>
+              <Eye className="absolute bottom-2 right-2 h-5 w-5 text-white bg-black/50 p-1 rounded-full" />
             </div>
           )}
-        </div>
-        <CardContent className="p-4">
-          <h3 className="font-medium truncate" title={evidence.name}>{evidence.name}</h3>
-          <p className="text-xs text-muted-foreground mt-1">
-            Added on {formatDate(evidence.created_at)}
-          </p>
+          
+          {!isImage && (
+            <div className="flex items-center justify-center h-32 bg-muted rounded-md">
+              <FileText className="h-12 w-12 text-muted-foreground" />
+            </div>
+          )}
+          
+          {summary && (
+            <div className="mt-4">
+              <MarkdownSummary 
+                summary={summary.summary} 
+                crimeType={summary.crime_type}
+                objects={summary.objects_detected}
+              />
+            </div>
+          )}
         </CardContent>
-        <CardFooter className="flex justify-between p-4 pt-0 gap-2">
-          <Button variant="outline" size="sm" onClick={handleView} disabled={isLoading}>
-            <Eye className="h-4 w-4 mr-1" />
-            View
-          </Button>
-          <div className="flex gap-1">
-            <Button variant="outline" size="icon" onClick={handleDownload} disabled={isLoading}>
-              <Download className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="icon" onClick={handleDelete} disabled={isLoading}>
-              <Trash2 className="h-4 w-4 text-red-500" />
+        
+        <CardFooter className="flex justify-between items-center">
+          <span className="text-xs text-muted-foreground">Added {timeAgo}</span>
+          
+          <div className="flex gap-2">
+            {evidence.file_path && (
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={handleDownload}
+                disabled={isDownloading}
+              >
+                {isDownloading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
+              </Button>
+            )}
+            
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
             </Button>
           </div>
         </CardFooter>
       </Card>
       
-      <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>{evidence.name}</DialogTitle>
           </DialogHeader>
-          <div className="flex items-center justify-center">
-            {previewUrl && (
-              <img
-                src={previewUrl}
+          
+          {imageUrl && (
+            <div className="flex justify-center">
+              <img 
+                src={imageUrl} 
                 alt={evidence.name}
-                className="max-h-[70vh] max-w-full object-contain"
+                className="max-h-[70vh] object-contain rounded-md"
               />
-            )}
-          </div>
+            </div>
+          )}
+          
+          {summary && (
+            <div className="mt-4">
+              <MarkdownSummary 
+                summary={summary.summary} 
+                crimeType={summary.crime_type}
+                objects={summary.objects_detected}
+              />
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </>

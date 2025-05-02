@@ -1,72 +1,114 @@
 
-// src/components/Navbar.tsx is a read-only file, so we'll need to create a new UserDropdown component that can be used in the protected routes
-
+// src/components/Navbar.tsx
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { Menu, X, Fingerprint } from "lucide-react";
 import { Button } from "./ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuLabel, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
-} from "./ui/dropdown-menu";
-import { User, Settings, LogOut } from "lucide-react";
+import { ThemeToggle } from "./theme-toggle";
 import { useAuth } from "@/context/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { UserDropdown } from "./UserDropdown";
 
-export function UserDropdown() {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
-  
-  const handleLogout = async () => {
-    await logout();
+export function Navbar() {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { user } = useAuth();
+
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen);
   };
-  
-  const goToProfile = () => {
-    navigate('/profile');
-  };
-  
-  if (!user) return null;
-  
-  const initials = user.name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-  
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-          <Avatar>
-            <AvatarFallback>{initials}</AvatarFallback>
-          </Avatar>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuLabel>
-          <div className="flex flex-col">
-            <span>{user.name}</span>
-            <span className="text-xs text-muted-foreground">{user.email}</span>
-          </div>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={goToProfile} className="cursor-pointer">
-          <User className="mr-2 h-4 w-4" />
-          <span>My Profile</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={goToProfile} className="cursor-pointer">
-          <Settings className="mr-2 h-4 w-4" />
-          <span>Settings</span>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
-          <LogOut className="mr-2 h-4 w-4" />
-          <span>Log out</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur">
+      <div className="container flex h-16 items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Link to="/" className="flex items-center gap-2">
+            <Fingerprint className="h-6 w-6 text-forensic" />
+            <span className="text-lg font-semibold">CrimeSleuth AI</span>
+          </Link>
+        </div>
+
+        {/* Desktop Navigation */}
+        <nav className="hidden md:flex items-center gap-6">
+          <Link to="/" className="text-sm font-medium transition-colors hover:text-primary">
+            Home
+          </Link>
+          {user && (
+            <Link to="/dashboard" className="text-sm font-medium transition-colors hover:text-primary">
+              Dashboard
+            </Link>
+          )}
+        </nav>
+
+        {/* Actions */}
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          
+          {user ? (
+            <UserDropdown />
+          ) : (
+            <div className="hidden md:flex items-center gap-2">
+              <Link to="/signin">
+                <Button variant="ghost" size="sm">Sign In</Button>
+              </Link>
+              <Link to="/signup">
+                <Button size="sm">Sign Up</Button>
+              </Link>
+            </div>
+          )}
+
+          {/* Mobile Menu Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            onClick={toggleMenu}
+          >
+            {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            <span className="sr-only">Toggle Menu</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* Mobile Navigation */}
+      {isMenuOpen && (
+        <div className="md:hidden container py-4 border-t">
+          <nav className="flex flex-col space-y-3">
+            <Link 
+              to="/" 
+              className="text-sm font-medium transition-colors hover:text-primary"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              Home
+            </Link>
+            {user && (
+              <Link 
+                to="/dashboard" 
+                className="text-sm font-medium transition-colors hover:text-primary"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Dashboard
+              </Link>
+            )}
+            {!user && (
+              <>
+                <Link 
+                  to="/signin" 
+                  className="text-sm font-medium transition-colors hover:text-primary"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Sign In
+                </Link>
+                <Link 
+                  to="/signup" 
+                  className="text-sm font-medium transition-colors hover:text-primary"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Sign Up
+                </Link>
+              </>
+            )}
+          </nav>
+        </div>
+      )}
+    </header>
   );
 }
