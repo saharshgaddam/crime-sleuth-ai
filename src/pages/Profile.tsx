@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,8 +18,8 @@ export default function Profile() {
   const { user, loading, updateUserProfile, updatePassword, toggleTwoFactor } = useAuth();
   
   // Profile update state
-  const [name, setName] = useState(user?.name || "");
-  const [email, setEmail] = useState(user?.email || "");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
   
   // Password update state
@@ -30,8 +29,17 @@ export default function Profile() {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   
   // Two-factor authentication state
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(user?.two_factor_enabled || false);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [isTogglingTwoFactor, setIsTogglingTwoFactor] = useState(false);
+
+  // Set initial state from user object when it loads
+  useEffect(() => {
+    if (user) {
+      setName(user.name || "");
+      setEmail(user.email || "");
+      setTwoFactorEnabled(user.two_factor_enabled || false);
+    }
+  }, [user]);
   
   // Handle profile update
   const handleProfileUpdate = async (e: React.FormEvent) => {

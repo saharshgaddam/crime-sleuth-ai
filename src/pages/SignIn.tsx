@@ -16,7 +16,7 @@ export default function SignIn() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const navigate = useNavigate();
-  const { loginWithSupabase, loginWithGoogle } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +24,7 @@ export default function SignIn() {
     
     try {
       // Always use Supabase authentication
-      await loginWithSupabase(email, password);
+      await login(email, password);
       // Navigation happens in auth context after successful login
     } catch (error: any) {
       toast.error(error.message || "Please check your credentials and try again.");

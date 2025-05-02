@@ -27,7 +27,9 @@ export function UserDropdown() {
   
   if (!user) return null;
   
-  const initials = user.name
+  const userName = user.name || user.email?.split('@')[0] || 'User';
+  
+  const initials = userName
     .split(' ')
     .map((n) => n[0])
     .join('')
@@ -46,7 +48,7 @@ export function UserDropdown() {
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>
           <div className="flex flex-col">
-            <span>{user.name}</span>
+            <span>{userName}</span>
             <span className="text-xs text-muted-foreground">{user.email}</span>
           </div>
         </DropdownMenuLabel>

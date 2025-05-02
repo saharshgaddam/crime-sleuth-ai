@@ -7,7 +7,7 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const { isAuthenticated, loading } = useAuth();
+  const { session, loading } = useAuth();
 
   // Show loading state while checking authentication
   if (loading) {
@@ -15,7 +15,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   }
 
   // Redirect to login if not authenticated
-  if (!isAuthenticated) {
+  if (!session) {
     return <Navigate to="/signin" replace />;
   }
 

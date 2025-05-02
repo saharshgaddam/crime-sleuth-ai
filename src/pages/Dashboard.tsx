@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -82,7 +81,7 @@ export default function Dashboard() {
       let query = supabase
         .from('cases')
         .select('*')
-        .eq('user_id', user._id);
+        .eq('user_id', user.id);
       
       if (sortField === 'lastUpdated') {
         query = query.order('updated_at', { ascending: sortDirection === 'asc' });
@@ -142,7 +141,7 @@ export default function Dashboard() {
           title: newCaseTitle,
           description: newCaseType || "Unspecified",
           status: "New",
-          user_id: user?._id
+          user_id: user?.id
         })
         .select();
         

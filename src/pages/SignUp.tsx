@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -34,7 +33,7 @@ export default function SignUp() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const navigate = useNavigate();
-  const { registerWithSupabase, loginWithGoogle } = useAuth();
+  const { signup, loginWithGoogle } = useAuth();
   
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
@@ -49,7 +48,7 @@ export default function SignUp() {
   async function onSubmit(data: SignupFormValues) {
     try {
       setIsLoading(true);
-      await registerWithSupabase(data.email, data.password, data.name, data.role);
+      await signup(data.email, data.password, data.name);
       // Navigate happens in the auth context after successful registration
     } catch (error: any) {
       toast.error(error.message || "Please check your details and try again.");

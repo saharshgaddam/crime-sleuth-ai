@@ -5,13 +5,21 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Session, User } from "@supabase/supabase-js";
 
+interface UserWithProfile extends User {
+  name?: string;
+  two_factor_enabled?: boolean;
+}
+
 interface AuthContextType {
-  user: User | null;
+  user: UserWithProfile | null;
   session: Session | null;
   loading: boolean;
+  isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   loginWithOtp: (email: string) => Promise<void>;
+  loginWithSupabase: (email: string, password: string) => Promise<void>;
+  registerWithSupabase: (email: string, password: string, name: string, role?: string) => Promise<void>;
   verifyOtp: (email: string, token: string) => Promise<void>;
   sendOtpForLogin: (email: string) => Promise<void>;
   signup: (email: string, password: string, name: string) => Promise<void>;
@@ -32,7 +40,7 @@ export const useAuth = () => {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<UserWithProfile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -43,7 +51,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (event, session) => {
         console.log("Auth state changed:", event, session);
         setSession(session);
-        setUser(session?.user ?? null);
+        setUser(session?.user ? { ...session.user } : null);
         
         // Fetch user profile data when session changes
         if (session?.user) {
@@ -57,7 +65,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      setUser(session?.user ?? null);
+      setUser(session?.user ? { ...session.user } : null);
       setLoading(false);
       
       if (session?.user) {
@@ -132,6 +140,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     }
   };
+
+  // Adding this alias for loginWithSupabase to maintain backward compatibility
+  const loginWithSupabase = login;
 
   const loginWithGoogle = async () => {
     try {
@@ -243,6 +254,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error: any) {
       console.error('Signup error:', error);
       toast.error(error.message || 'Failed to create account');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Adding this alias for registerWithSupabase to maintain backward compatibility
+  const registerWithSupabase = async (email: string, password: string, name: string, role: string = 'investigator') => {
+    try {
+      setLoading(true);
+      const { error, data } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name,
+            role,
+          },
+        },
+      });
+
+      if (error) throw error;
+      
+      toast.success("Account created successfully");
+      navigate('/dashboard');
+    } catch (error: any) {
+      console.error('Signup error:', error);
+      toast.error(error.message || 'Failed to create account');
+      throw error;
     } finally {
       setLoading(false);
     }
@@ -365,9 +404,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     session,
     loading,
+    isAuthenticated: !!session,
     login,
+    loginWithSupabase,
     loginWithGoogle,
     loginWithOtp,
+    registerWithSupabase,
     verifyOtp,
     sendOtpForLogin,
     signup,
