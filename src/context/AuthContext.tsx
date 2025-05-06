@@ -5,28 +5,24 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Session, User } from "@supabase/supabase-js";
 
-interface UserWithProfile extends User {
+interface UserProfile {
   name?: string;
   two_factor_enabled?: boolean;
 }
 
 interface AuthContextType {
-  user: UserWithProfile | null;
+  user: User | null;
   session: Session | null;
   loading: boolean;
-  isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   loginWithOtp: (email: string) => Promise<void>;
-  loginWithSupabase: (email: string, password: string) => Promise<void>;
-  registerWithSupabase: (email: string, password: string, name: string, role?: string) => Promise<void>;
   verifyOtp: (email: string, token: string) => Promise<void>;
   sendOtpForLogin: (email: string) => Promise<void>;
   signup: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
   updateUserProfile: (userData: { name?: string; email?: string }) => Promise<void>;
   updatePassword: (newPassword: string) => Promise<void>;
-  toggleTwoFactor: (enabled: boolean) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -40,7 +36,7 @@ export const useAuth = () => {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<UserWithProfile | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -51,49 +47,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (event, session) => {
         console.log("Auth state changed:", event, session);
         setSession(session);
-        setUser(session?.user ? { ...session.user } : null);
-        
-        // Fetch user profile data when session changes
-        if (session?.user) {
-          setTimeout(() => {
-            fetchUserProfile(session.user.id);
-          }, 0);
-        }
+        setUser(session?.user ? session.user : null);
       }
     );
 
     // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      setUser(session?.user ? { ...session.user } : null);
+      setUser(session?.user ?? null);
       setLoading(false);
-      
-      if (session?.user) {
-        fetchUserProfile(session.user.id);
-      }
     });
 
     return () => subscription.unsubscribe();
   }, []);
-
-  const fetchUserProfile = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-      
-      if (error) throw error;
-      
-      // Add profile data to user
-      if (data) {
-        setUser(prev => prev ? { ...prev, name: data.name, two_factor_enabled: data.two_factor_enabled } : null);
-      }
-    } catch (error) {
-      console.error('Error fetching user profile:', error);
-    }
-  };
 
   const login = async (email: string, password: string) => {
     try {
@@ -140,9 +106,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     }
   };
-
-  // Adding this alias for loginWithSupabase to maintain backward compatibility
-  const loginWithSupabase = login;
 
   const loginWithGoogle = async () => {
     try {
@@ -215,7 +178,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const verifyOtp = async (email: string, token: string) => {
     try {
       setLoading(true);
-      const { error, data } = await supabase.auth.verifyOtp({
+      const { error } = await supabase.auth.verifyOtp({
         email,
         token,
         type: 'email',
@@ -259,34 +222,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Adding this alias for registerWithSupabase to maintain backward compatibility
-  const registerWithSupabase = async (email: string, password: string, name: string, role: string = 'investigator') => {
-    try {
-      setLoading(true);
-      const { error, data } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name,
-            role,
-          },
-        },
-      });
-
-      if (error) throw error;
-      
-      toast.success("Account created successfully");
-      navigate('/dashboard');
-    } catch (error: any) {
-      console.error('Signup error:', error);
-      toast.error(error.message || 'Failed to create account');
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const logout = async () => {
     try {
       setLoading(true);
@@ -295,6 +230,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       setUser(null);
       setSession(null);
+      
+      // Clear any local storage related to auth
+      localStorage.removeItem('tempAuthEmail');
+      
       navigate('/');
       toast.success("Signed out successfully");
     } catch (error: any) {
@@ -324,27 +263,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { error } = await supabase
         .from('profiles')
         .update({ 
-          name: userData.name || user.name, 
-          email: userData.email || user.email 
+          name: userData.name, 
+          email: userData.email 
         })
         .eq('id', user.id);
       
       if (error) throw error;
       
-      // Update local user state
-      setUser(prev => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          name: userData.name || prev.name,
-          email: userData.email || prev.email,
-        };
-      });
-      
       toast.success("Profile updated successfully");
     } catch (error: any) {
       console.error('Profile update error:', error);
       toast.error(error.message || 'Failed to update profile');
+      throw error;
     } finally {
       setLoading(false);
     }
@@ -364,37 +294,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error: any) {
       console.error('Password update error:', error);
       toast.error(error.message || 'Failed to update password');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const toggleTwoFactor = async (enabled: boolean) => {
-    try {
-      setLoading(true);
-      
-      if (!user) throw new Error("User not authenticated");
-      
-      const { error } = await supabase
-        .from('profiles')
-        .update({ two_factor_enabled: enabled })
-        .eq('id', user.id);
-      
-      if (error) throw error;
-      
-      // Update local user state
-      setUser(prev => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          two_factor_enabled: enabled,
-        };
-      });
-      
-      toast.success(`Two-factor authentication ${enabled ? 'enabled' : 'disabled'}`);
-    } catch (error: any) {
-      console.error('2FA toggle error:', error);
-      toast.error(error.message || 'Failed to update two-factor authentication');
+      throw error;
     } finally {
       setLoading(false);
     }
@@ -404,19 +304,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     session,
     loading,
-    isAuthenticated: !!session,
     login,
-    loginWithSupabase,
     loginWithGoogle,
     loginWithOtp,
-    registerWithSupabase,
     verifyOtp,
     sendOtpForLogin,
     signup,
     logout,
     updateUserProfile,
     updatePassword,
-    toggleTwoFactor,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

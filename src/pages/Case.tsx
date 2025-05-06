@@ -51,22 +51,9 @@ import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, For
 import { useForm } from "react-hook-form";
 import { Card, CardContent } from "@/components/ui/card";
 import API, { forensicService } from "@/services/api";
-import { supabase } from "@/integrations/supabase/client";
-
-type UploadedImage = {
-  id: string;
-  src: string;
-  name: string;
-  date: Date;
-  type?: "image"; // Add optional type property
-};
-
-type UploadedDocument = {
-  id: string;
-  name: string;
-  type: string;
-  date: Date;
-};
+import { useCase } from "@/hooks/useCase";
+import { useEvidence, UploadedFile } from "@/hooks/useEvidence";
+import { useProfile } from "@/hooks/useProfile";
 
 type SourceType = "all" | "images" | "documents";
 type ActiveTab = "sources" | "chat" | "studio";
@@ -88,16 +75,14 @@ type ForensicReport = {
 
 export default function Case() {
   const { caseId } = useParams();
-  const [caseName, setCaseName] = useState(`Case #${caseId?.replace("case-", "")}`);
-  const [description, setDescription] = useState("");
-  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
-  const [uploadedDocs, setUploadedDocs] = useState<UploadedDocument[]>([]);
+  const { caseData, loading: caseLoading } = useCase(caseId);
+  const { uploadedFiles, loading: evidenceLoading, uploading: isUploading, uploadFile, deleteEvidence } = useEvidence(caseId);
+  const { profile } = useProfile();
+  
   const [activeTab, setActiveTab] = useState<ActiveTab>("sources");
-  const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [sourceType, setSourceType] = useState<SourceType>("all");
-  const [isUploading, setIsUploading] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<UploadedImage | null>(null);
+  const [selectedImage, setSelectedImage] = useState<UploadedFile | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [summary, setSummary] = useState<string | null>(null);
   const [displayedSummary, setDisplayedSummary] = useState<string | null>(null);
@@ -152,96 +137,28 @@ export default function Case() {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files || files.length === 0) return;
+    if (!files || files.length === 0 || !caseId) return;
 
-    setIsUploading(true);
-    
-    const imageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    const docTypes = ['application/pdf', 'text/plain', 'application/msword', 
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-    
     try {
-      const newImages: UploadedImage[] = [];
-      const newDocs: UploadedDocument[] = [];
-      
       for (const file of Array.from(files)) {
-        if (imageTypes.includes(file.type)) {
-          const result = await readFileAsDataURL(file);
-          newImages.push({
-            id: generateId(),
-            src: result,
-            name: file.name,
-            date: new Date()
-          });
-        } else if (docTypes.includes(file.type)) {
-          newDocs.push({
-            id: generateId(),
-            name: file.name,
-            type: file.type,
-            date: new Date()
-          });
-        }
+        const name = file.name;
+        await uploadFile(file, name);
       }
       
-      if (newImages.length > 0) {
-        setUploadedImages(prev => [...prev, ...newImages]);
+      if (e.target) {
+        e.target.value = '';
       }
-      
-      if (newDocs.length > 0) {
-        setUploadedDocs(prev => [...prev, ...newDocs]);
-      }
-      
-      const totalFiles = newImages.length + newDocs.length;
-      if (totalFiles > 0) {
-        toast({
-          title: "Upload Successful",
-          description: `Uploaded ${totalFiles} file${totalFiles !== 1 ? 's' : ''}.`,
-        });
-      } else {
-        toast({
-          title: "No valid files",
-          description: "Please upload images or documents.",
-          variant: "destructive"
-        });
-      }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error uploading files:", error);
       toast({
         title: "Upload Failed",
         description: "There was a problem uploading your files.",
         variant: "destructive"
       });
-    } finally {
-      setIsUploading(false);
-      
-      if (e.target) {
-        e.target.value = '';
-      }
     }
   };
 
-  const readFileAsDataURL = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          resolve(event.target.result.toString());
-        } else {
-          reject(new Error("Failed to read file"));
-        }
-      };
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const generateId = () => {
-    return Date.now().toString(36) + Math.random().toString(36).substring(2);
-  };
-
-  const handleDeleteImage = (id: string) => {
-    setUploadedImages(prev => prev.filter(img => img.id !== id));
-    
+  const handleDeleteImage = async (id: string) => {
     if (selectedImage && selectedImage.id === id) {
       setSelectedImage(null);
       setSummary(null);
@@ -250,22 +167,10 @@ export default function Case() {
       setCrimeType(null);
     }
     
-    toast({
-      title: "Image Deleted",
-      description: "The image has been removed from your case.",
-    });
+    await deleteEvidence(id);
   };
 
-  const handleDeleteDocument = (id: string) => {
-    setUploadedDocs(prev => prev.filter(doc => doc.id !== id));
-    
-    toast({
-      title: "Document Deleted",
-      description: "The document has been removed from your case.",
-    });
-  };
-
-  const handleSelectImage = (image: UploadedImage) => {
+  const handleSelectImage = (image: UploadedFile) => {
     setSelectedImage(image);
     setActiveTab("chat");
     setZoomLevel(1);
@@ -342,6 +247,10 @@ export default function Case() {
       if (!exists) {
         console.log("No existing summary found, generating new one...");
         
+        if (!selectedImage.src) {
+          throw new Error("No image source available for analysis");
+        }
+        
         const imageFile = await extractImageFile(selectedImage.src);
         
         const result = await forensicService.generateImageSummary(caseId, selectedImage.id, imageFile);
@@ -357,7 +266,7 @@ export default function Case() {
         title: "Summary Generated",
         description: "The image has been successfully analyzed.",
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error in generateSummary:", error);
       
       const errorMessage = error.message || `Failed to generate summary. Please ensure the ML server is running at ${FLASK_API_URL}`;
@@ -396,7 +305,7 @@ export default function Case() {
       });
       
       console.log("Case report:", reportData.report);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error generating case report:", error);
       
       const errorMessage = error.message || "There was a problem generating the case report.";
@@ -412,7 +321,7 @@ export default function Case() {
   };
 
   const analyzeEvidence = () => {
-    const totalSources = uploadedImages.length + uploadedDocs.length;
+    const totalSources = uploadedFiles.length;
     if (totalSources === 0) {
       toast({
         title: "No Evidence to Analyze",
@@ -426,29 +335,21 @@ export default function Case() {
   };
 
   const filteredSources = () => {
-    if (sourceType === "images") return uploadedImages;
-    if (sourceType === "documents") return uploadedDocs.map(doc => ({
-      id: doc.id,
-      src: "",
-      name: doc.name,
-      date: doc.date,
-      type: "document" as const
-    }));
-    
-    const images = uploadedImages.map(img => ({ ...img, type: "image" as const }));
-    const docs = uploadedDocs.map(doc => ({ 
-      id: doc.id, 
-      src: "", 
-      name: doc.name, 
-      date: doc.date, 
-      type: "document" as const
-    }));
-    
-    return [...images, ...docs].sort((a, b) => b.date.getTime() - a.date.getTime());
+    if (sourceType === "images") return uploadedFiles.filter(file => file.type === "image");
+    if (sourceType === "documents") return uploadedFiles.filter(file => file.type === "document");
+    return uploadedFiles;
   };
 
   const getTotalSourceCount = () => {
-    return uploadedImages.length + uploadedDocs.length;
+    return uploadedFiles.length;
+  };
+
+  const getImagesCount = () => {
+    return uploadedFiles.filter(file => file.type === "image").length;
+  };
+
+  const getDocsCount = () => {
+    return uploadedFiles.filter(file => file.type === "document").length;
   };
 
   const form = useForm({
@@ -473,6 +374,8 @@ export default function Case() {
     setCrimeType(null);
   };
 
+  const loading = caseLoading || evidenceLoading;
+
   return (
     <div className="flex flex-col h-screen bg-background">
       <header className="flex items-center justify-between p-4 border-b">
@@ -482,7 +385,11 @@ export default function Case() {
               <ArrowLeft className="w-5 h-5 text-primary" />
             </div>
           </Link>
-          <h1 className="text-xl font-semibold">{caseName}</h1>
+          {loading ? (
+            <div className="h-7 w-40 bg-muted animate-pulse rounded"></div>
+          ) : (
+            <h1 className="text-xl font-semibold">{caseData?.title || "Loading case..."}</h1>
+          )}
         </div>
         
         <div className="flex items-center gap-2">
@@ -494,9 +401,15 @@ export default function Case() {
             <Settings className="w-4 h-4" />
             Settings
           </Button>
-          <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white">
-            U
-          </div>
+          {profile ? (
+            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white">
+              {profile.name ? profile.name.charAt(0).toUpperCase() : 'U'}
+            </div>
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white">
+              U
+            </div>
+          )}
         </div>
       </header>
 
@@ -586,7 +499,7 @@ export default function Case() {
                   <div 
                     key={item.id} 
                     className={`relative group rounded-md border overflow-hidden flex items-center p-2 hover:bg-accent cursor-pointer ${selectedImage && selectedImage.id === item.id ? 'bg-accent' : ''}`}
-                    onClick={() => !isDocument && handleSelectImage(item as UploadedImage)}
+                    onClick={() => !isDocument && handleSelectImage(item as UploadedFile)}
                   >
                     <div className="h-12 w-12 rounded overflow-hidden mr-3 flex-shrink-0 bg-muted flex items-center justify-center">
                       {isDocument ? (
@@ -655,7 +568,7 @@ export default function Case() {
                     : `${getTotalSourceCount()} source${getTotalSourceCount() !== 1 ? 's' : ''} added`
                   }
                 </p>
-                <p className="text-xs text-muted-foreground">{uploadedImages.length} images, {uploadedDocs.length} documents</p>
+                <p className="text-xs text-muted-foreground">{getImagesCount()} images, {getDocsCount()} documents</p>
               </div>
               <Button size="sm" className="rounded-full w-8 h-8 p-0 flex-shrink-0">
                 <ChevronRight className="h-4 w-4" />

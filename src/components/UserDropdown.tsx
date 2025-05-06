@@ -12,9 +12,11 @@ import {
 import { User, Settings, LogOut } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { useProfile } from "@/hooks/useProfile";
 
 export function UserDropdown() {
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
+  const { profile } = useProfile();
   const navigate = useNavigate();
   
   const handleLogout = async () => {
@@ -25,9 +27,9 @@ export function UserDropdown() {
     navigate('/profile');
   };
   
-  if (!user) return null;
+  if (!profile) return null;
   
-  const userName = user.name || user.email?.split('@')[0] || 'User';
+  const userName = profile.name || profile.email?.split('@')[0] || 'User';
   
   const initials = userName
     .split(' ')
@@ -49,7 +51,7 @@ export function UserDropdown() {
         <DropdownMenuLabel>
           <div className="flex flex-col">
             <span>{userName}</span>
-            <span className="text-xs text-muted-foreground">{user.email}</span>
+            <span className="text-xs text-muted-foreground">{profile.email}</span>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

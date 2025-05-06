@@ -1,342 +1,219 @@
-import { useState, useEffect } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { AlertCircle, Check, Loader2, UserCircle, Key, Lock } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { toast } from "sonner";
-import { useAuth } from "@/context/AuthContext";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
-import { UserDropdown } from "@/components/UserDropdown";
+import { useAuth } from "@/context/AuthContext";
+import { useProfile } from "@/hooks/useProfile";
+import { toast } from "sonner";
 
 export default function Profile() {
-  const { user, loading, updateUserProfile, updatePassword, toggleTwoFactor } = useAuth();
+  const { user, updateUserProfile, updatePassword } = useAuth();
+  const { profile, toggleTwoFactor } = useProfile();
   
-  // Profile update state
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [isUpdating, setIsUpdating] = useState(false);
-  
-  // Password update state
+  // Local state for form controls
+  const [name, setName] = useState(profile?.name || "");
+  const [email, setEmail] = useState(profile?.email || "");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [isTwoFactorEnabled, setIsTwoFactorEnabled] = useState(profile?.two_factor_enabled || false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
-  
-  // Two-factor authentication state
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
-  const [isTogglingTwoFactor, setIsTogglingTwoFactor] = useState(false);
 
-  // Set initial state from user object when it loads
-  useEffect(() => {
-    if (user) {
-      setName(user.name || "");
-      setEmail(user.email || "");
-      setTwoFactorEnabled(user.two_factor_enabled || false);
+  // Sync local state when profile is loaded
+  useState(() => {
+    if (profile) {
+      setName(profile.name || "");
+      setEmail(profile.email || "");
+      setIsTwoFactorEnabled(profile.two_factor_enabled || false);
     }
-  }, [user]);
-  
-  // Handle profile update
+  });
+
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!user) return;
-    
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      toast.error("Please enter a valid email address");
+    if (!profile) {
+      toast.error("Profile not loaded");
       return;
     }
-    
-    // Check if anything changed
-    if (name === user.name && email === user.email) {
-      toast.info("No changes to update");
-      return;
-    }
-    
-    setIsUpdating(true);
     
     try {
+      setIsUpdating(true);
+      
       await updateUserProfile({ name, email });
+      
+      toast.success("Profile updated successfully");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update profile");
     } finally {
       setIsUpdating(false);
     }
   };
-  
-  // Handle password update
-  const handlePasswordUpdate = async (e: React.FormEvent) => {
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Basic validation
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      toast.error("All password fields are required");
-      return;
-    }
-    
     if (newPassword !== confirmPassword) {
-      toast.error("New passwords don't match");
+      toast.error("Passwords do not match");
       return;
     }
-    
-    if (newPassword.length < 6) {
-      toast.error("Password must be at least 6 characters");
-      return;
-    }
-    
-    setIsChangingPassword(true);
     
     try {
+      setIsChangingPassword(true);
+      
       await updatePassword(newPassword);
       
-      // Clear fields on success
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+      
+      toast.success("Password updated successfully");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update password");
     } finally {
       setIsChangingPassword(false);
     }
   };
-  
-  // Handle 2FA toggle
-  const handleTwoFactorToggle = async (checked: boolean) => {
-    setIsTogglingTwoFactor(true);
-    
+
+  const handleTwoFactorToggle = async (enabled: boolean) => {
     try {
-      await toggleTwoFactor(checked);
-      setTwoFactorEnabled(checked);
-    } finally {
-      setIsTogglingTwoFactor(false);
+      const result = await toggleTwoFactor(enabled);
+      if (result) {
+        setIsTwoFactorEnabled(enabled);
+        toast.success(`Two-factor authentication ${enabled ? 'enabled' : 'disabled'}`);
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update two-factor authentication settings");
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen flex-col">
-        <Navbar />
-        <div className="flex-1 container py-8 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-muted-foreground">Loading profile...</p>
-          </div>
-        </div>
-        <Footer />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="flex min-h-screen flex-col">
-        <Navbar />
-        <div className="flex-1 container py-8 flex items-center justify-center">
-          <Alert variant="destructive" className="max-w-md">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              You must be signed in to view this page. Please sign in to continue.
-            </AlertDescription>
-          </Alert>
-        </div>
-        <Footer />
-      </div>
-    );
-  }
-
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="min-h-screen flex flex-col">
       <Navbar />
       
-      <div className="flex-1 container py-8">
-        <div className="flex flex-col gap-8">
-          <div className="flex justify-between items-center">
-            <div className="flex flex-col gap-2">
-              <h1 className="text-3xl font-bold">My Profile</h1>
-              <p className="text-muted-foreground">
-                Manage your account settings and preferences
-              </p>
-            </div>
-            
-            <UserDropdown />
-          </div>
+      <main className="flex-1">
+        <div className="container max-w-screen-lg py-8">
+          <h1 className="text-3xl font-bold mb-8">My Profile</h1>
           
-          <Tabs defaultValue="account">
-            <TabsList className="grid w-full max-w-md grid-cols-2">
-              <TabsTrigger value="account">Account Settings</TabsTrigger>
-              <TabsTrigger value="security">Security</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="account" className="mt-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <UserCircle className="h-5 w-5" />
-                    Personal Information
-                  </CardTitle>
-                  <CardDescription>
-                    Update your personal details and contact information
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleProfileUpdate} className="space-y-4">
+          <div className="grid gap-8">
+            <Card>
+              <CardHeader>
+                <CardTitle>Profile Information</CardTitle>
+                <CardDescription>Update your account details and preferences</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleProfileUpdate} className="space-y-4">
+                  <div className="grid gap-4">
                     <div className="grid gap-2">
-                      <Label htmlFor="name">Full Name</Label>
+                      <label htmlFor="name" className="font-medium">Name</label>
                       <Input
                         id="name"
+                        type="text"
+                        placeholder="Your name"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        placeholder="Your name"
-                        disabled={isUpdating}
-                        required
                       />
                     </div>
                     
                     <div className="grid gap-2">
-                      <Label htmlFor="email">Email</Label>
+                      <label htmlFor="email" className="font-medium">Email</label>
                       <Input
                         id="email"
                         type="email"
+                        placeholder="Your email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="Your email"
-                        disabled={isUpdating}
-                        required
                       />
-                      {email !== user.email && (
-                        <p className="text-xs text-muted-foreground">
-                          Changing your email will require verification
-                        </p>
-                      )}
                     </div>
-                    
-                    <Button type="submit" disabled={isUpdating}>
-                      {isUpdating ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Updating...
-                        </>
-                      ) : (
-                        <>Save Changes</>
-                      )}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-            </TabsContent>
+                  </div>
+                  
+                  <Button type="submit" disabled={isUpdating}>
+                    {isUpdating ? "Updating..." : "Update Profile"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
             
-            <TabsContent value="security" className="mt-6 space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Lock className="h-5 w-5" />
-                    Change Password
-                  </CardTitle>
-                  <CardDescription>
-                    Update your password to keep your account secure
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handlePasswordUpdate} className="space-y-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="current-password">Current Password</Label>
-                      <Input
-                        id="current-password"
-                        type="password"
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                        disabled={isChangingPassword}
-                        required
-                      />
+            <Card>
+              <CardHeader>
+                <CardTitle>Security</CardTitle>
+                <CardDescription>Manage your account security settings</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div>
+                  <h3 className="font-medium mb-4">Two-Factor Authentication</h3>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <p>Enhance your account security</p>
+                      <p className="text-sm text-muted-foreground">
+                        Receive an email code when logging in on new devices
+                      </p>
                     </div>
-                    
-                    <div className="grid gap-2">
-                      <Label htmlFor="new-password">New Password</Label>
-                      <Input
-                        id="new-password"
-                        type="password"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        disabled={isChangingPassword}
-                        required
-                      />
-                    </div>
-                    
-                    <div className="grid gap-2">
-                      <Label htmlFor="confirm-password">Confirm New Password</Label>
-                      <Input
-                        id="confirm-password"
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        disabled={isChangingPassword}
-                        required
-                      />
+                    <Switch
+                      checked={isTwoFactorEnabled}
+                      onCheckedChange={handleTwoFactorToggle}
+                    />
+                  </div>
+                </div>
+                
+                <Separator />
+                
+                <div>
+                  <h3 className="font-medium mb-4">Change Password</h3>
+                  <form onSubmit={handlePasswordChange} className="space-y-4">
+                    <div className="grid gap-4">
+                      <div className="grid gap-2">
+                        <label htmlFor="current-password" className="font-medium">Current Password</label>
+                        <Input
+                          id="current-password"
+                          type="password"
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                        />
+                      </div>
+                      
+                      <div className="grid gap-2">
+                        <label htmlFor="new-password" className="font-medium">New Password</label>
+                        <Input
+                          id="new-password"
+                          type="password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                        />
+                      </div>
+                      
+                      <div className="grid gap-2">
+                        <label htmlFor="confirm-password" className="font-medium">Confirm New Password</label>
+                        <Input
+                          id="confirm-password"
+                          type="password"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                        />
+                      </div>
                     </div>
                     
                     <Button type="submit" disabled={isChangingPassword}>
-                      {isChangingPassword ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Updating...
-                        </>
-                      ) : (
-                        <>Update Password</>
-                      )}
+                      {isChangingPassword ? "Updating..." : "Update Password"}
                     </Button>
                   </form>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Key className="h-5 w-5" />
-                    Two-Factor Authentication
-                  </CardTitle>
-                  <CardDescription>
-                    Add an extra layer of security to your account
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between space-x-4 rounded-lg border p-4">
-                    <div className="space-y-0.5">
-                      <div className="font-medium">
-                        Email Two-Factor Authentication
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        Receive a verification code via email when signing in
-                      </div>
-                    </div>
-                    <Switch
-                      checked={twoFactorEnabled}
-                      onCheckedChange={handleTwoFactorToggle}
-                      disabled={isTogglingTwoFactor}
-                    />
-                  </div>
-                  
-                  {twoFactorEnabled && (
-                    <Alert className="bg-green-50 dark:bg-green-950 text-green-800 dark:text-green-200">
-                      <Check className="h-4 w-4" />
-                      <AlertDescription>
-                        Two-factor authentication is enabled for your account
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </CardContent>
-                <CardFooter>
-                  <p className="text-xs text-muted-foreground">
-                    When enabled, you will be required to enter a verification code sent to your email when signing in
-                  </p>
-                </CardFooter>
-              </Card>
-            </TabsContent>
-          </Tabs>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </div>
+      </main>
       
       <Footer />
     </div>
