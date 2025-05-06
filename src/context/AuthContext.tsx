@@ -78,7 +78,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // If 2FA is enabled, use OTP flow
       if (profileData?.two_factor_enabled) {
-        // Store email temporarily for 2FA verification
+        // First attempt to sign in with password to verify credentials
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        
+        if (signInError) throw signInError;
+        
+        // If password is correct, then send OTP and redirect to verification page
         localStorage.setItem('tempAuthEmail', email);
         
         // Send OTP
@@ -185,6 +193,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (error) throw error;
+      
+      // Remove the temporary email from storage
+      localStorage.removeItem('tempAuthEmail');
       
       toast.success("Verified successfully");
       navigate('/dashboard');

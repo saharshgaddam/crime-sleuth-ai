@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/AuthContext";
 
 export interface Case {
   id: string;
@@ -18,10 +19,11 @@ export const useCase = (caseId: string | undefined) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
     const fetchCase = async () => {
-      if (!caseId) {
+      if (!caseId || !user) {
         setLoading(false);
         return;
       }
@@ -33,9 +35,18 @@ export const useCase = (caseId: string | undefined) => {
           .from('cases')
           .select('*')
           .eq('id', caseId)
-          .single();
+          .maybeSingle();
           
         if (error) throw error;
+        
+        if (!data) {
+          throw new Error("Case not found or you don't have permission to access it");
+        }
+        
+        // Check if case belongs to the current user
+        if (data.user_id !== user.id) {
+          throw new Error("You don't have permission to access this case");
+        }
         
         setCaseData(data);
       } catch (err: any) {
@@ -52,7 +63,7 @@ export const useCase = (caseId: string | undefined) => {
     };
 
     fetchCase();
-  }, [caseId, toast]);
+  }, [caseId, toast, user]);
 
   return { caseData, loading, error };
 };

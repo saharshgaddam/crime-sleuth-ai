@@ -15,8 +15,8 @@ import { useNavigate } from "react-router-dom";
 import { useProfile } from "@/hooks/useProfile";
 
 export function UserDropdown() {
-  const { logout } = useAuth();
-  const { profile } = useProfile();
+  const { logout, user: authUser } = useAuth();
+  const { profile, loading } = useProfile();
   const navigate = useNavigate();
   
   const handleLogout = async () => {
@@ -27,9 +27,18 @@ export function UserDropdown() {
     navigate('/profile');
   };
   
-  if (!profile) return null;
+  // Show loading state while profile is being fetched
+  if (loading || !authUser) return (
+    <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+      <Avatar>
+        <AvatarFallback className="animate-pulse">...</AvatarFallback>
+      </Avatar>
+    </Button>
+  );
   
-  const userName = profile.name || profile.email?.split('@')[0] || 'User';
+  // Use profile data or fallback to auth user data
+  const userName = profile?.name || authUser?.email?.split('@')[0] || 'User';
+  const userEmail = profile?.email || authUser?.email || '';
   
   const initials = userName
     .split(' ')
@@ -51,7 +60,7 @@ export function UserDropdown() {
         <DropdownMenuLabel>
           <div className="flex flex-col">
             <span>{userName}</span>
-            <span className="text-xs text-muted-foreground">{profile.email}</span>
+            <span className="text-xs text-muted-foreground">{userEmail}</span>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

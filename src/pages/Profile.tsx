@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -19,26 +19,26 @@ import { toast } from "sonner";
 
 export default function Profile() {
   const { user, updateUserProfile, updatePassword } = useAuth();
-  const { profile, toggleTwoFactor } = useProfile();
+  const { profile, loading: profileLoading, updateProfile, toggleTwoFactor } = useProfile();
   
   // Local state for form controls
-  const [name, setName] = useState(profile?.name || "");
-  const [email, setEmail] = useState(profile?.email || "");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [isTwoFactorEnabled, setIsTwoFactorEnabled] = useState(profile?.two_factor_enabled || false);
+  const [isTwoFactorEnabled, setIsTwoFactorEnabled] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   // Sync local state when profile is loaded
-  useState(() => {
+  useEffect(() => {
     if (profile) {
       setName(profile.name || "");
       setEmail(profile.email || "");
       setIsTwoFactorEnabled(profile.two_factor_enabled || false);
     }
-  });
+  }, [profile]);
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,8 +95,22 @@ export default function Profile() {
       }
     } catch (error: any) {
       toast.error(error.message || "Failed to update two-factor authentication settings");
+      // Reset switch to original state on error
+      setIsTwoFactorEnabled(!enabled);
     }
   };
+
+  if (profileLoading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <div className="flex-1 container py-8 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">

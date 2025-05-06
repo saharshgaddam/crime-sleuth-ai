@@ -37,7 +37,7 @@ export const useEvidence = (caseId: string | undefined) => {
   // Fetch evidence from Supabase when caseId changes
   useEffect(() => {
     const fetchEvidence = async () => {
-      if (!caseId) {
+      if (!caseId || !user) {
         setLoading(false);
         return;
       }
@@ -100,7 +100,7 @@ export const useEvidence = (caseId: string | undefined) => {
     };
 
     fetchEvidence();
-  }, [caseId, toast]);
+  }, [caseId, toast, user]);
 
   const uploadFile = async (file: File, name: string, description: string | null = null) => {
     if (!caseId) {
@@ -132,7 +132,10 @@ export const useEvidence = (caseId: string | undefined) => {
       // Upload the file to Supabase Storage
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('evidence')
-        .upload(filePath, file);
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+        });
       
       if (uploadError) throw uploadError;
       
@@ -146,7 +149,7 @@ export const useEvidence = (caseId: string | undefined) => {
         .from('evidence')
         .insert({
           case_id: caseId,
-          user_id: user.id, // Add the user_id from the authenticated user
+          user_id: user.id, 
           name: name,
           description: description,
           type: file.type,
