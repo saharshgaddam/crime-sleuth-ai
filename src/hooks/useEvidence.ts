@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { v4 as uuidv4 } from "uuid";
+import { useAuth } from "@/context/AuthContext";
 
 export interface Evidence {
   id: string;
@@ -31,6 +32,7 @@ export const useEvidence = (caseId: string | undefined) => {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   // Fetch evidence from Supabase when caseId changes
   useEffect(() => {
@@ -109,6 +111,15 @@ export const useEvidence = (caseId: string | undefined) => {
       });
       return null;
     }
+    
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "Authentication Error",
+        description: "You must be logged in to upload evidence",
+      });
+      return null;
+    }
 
     try {
       setUploading(true);
@@ -135,6 +146,7 @@ export const useEvidence = (caseId: string | undefined) => {
         .from('evidence')
         .insert({
           case_id: caseId,
+          user_id: user.id, // Add the user_id from the authenticated user
           name: name,
           description: description,
           type: file.type,

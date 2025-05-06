@@ -526,7 +526,7 @@ export default function Case() {
                       className="opacity-0 group-hover:opacity-100"
                       onClick={(e) => {
                         e.stopPropagation();
-                        isDocument ? handleDeleteDocument(item.id) : handleDeleteImage(item.id);
+                        handleDeleteImage(item.id);
                       }}
                     >
                       <Trash2 className="h-4 w-4" />
