@@ -66,7 +66,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setLoading(true);
       
-      // Check if the user has 2FA enabled by querying the profiles table
+      // First verify the credentials without completing the login
+      const { error: credentialError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      
+      if (credentialError) throw credentialError;
+      
+      // Check if the user has 2FA enabled
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('two_factor_enabled')
@@ -75,19 +83,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (profileError && profileError.code !== 'PGRST116') {
         console.error("Error checking 2FA status:", profileError);
+        throw profileError;
       }
       
-      // If 2FA is enabled, use OTP flow
+      // If 2FA is enabled, store email and redirect to OTP verification
       if (profileData?.two_factor_enabled) {
-        // First attempt to sign in with password to verify credentials
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        console.log("2FA is enabled for this user, redirecting to OTP verification");
         
-        if (signInError) throw signInError;
-        
-        // If password is correct, store the email for the OTP verification step
+        // Store the email for the OTP verification step
         localStorage.setItem('tempAuthEmail', email);
         
         // Send OTP
@@ -98,7 +101,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
       
-      // Regular password-based login if no 2FA
+      // If 2FA is not enabled, complete the login
+      console.log("2FA is not enabled, completing normal login");
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -165,6 +169,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const sendOtpForLogin = async (email: string) => {
     try {
       setLoading(true);
+      console.log("Sending OTP to email:", email);
+      
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {

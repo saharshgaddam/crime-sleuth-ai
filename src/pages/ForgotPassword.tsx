@@ -27,15 +27,20 @@ export default function ForgotPassword() {
     setIsLoading(true);
     
     try {
+      // Get the current site URL for the redirect
+      const siteUrl = window.location.origin;
+      
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/update-password`,
+        redirectTo: `${siteUrl}/update-password`,
       });
       
       if (error) throw error;
       
       setIsSubmitted(true);
       toast.success("Password reset link sent to your email");
+      console.log("Password reset email sent successfully");
     } catch (error: any) {
+      console.error("Password reset error:", error);
       toast.error(error.message || "Failed to send password reset link");
     } finally {
       setIsLoading(false);

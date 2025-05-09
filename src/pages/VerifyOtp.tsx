@@ -6,7 +6,6 @@ import { Fingerprint, Loader2, CheckCircle2, Key } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
@@ -20,8 +19,11 @@ export default function VerifyOtp() {
   useEffect(() => {
     // Retrieve email from localStorage (set during login with 2FA)
     const storedEmail = localStorage.getItem("tempAuthEmail");
+    console.log("Retrieved stored email for OTP verification:", storedEmail);
+    
     if (!storedEmail) {
       // If no email in storage, redirect to login
+      console.log("No email found in storage, redirecting to login");
       toast.error("Session expired. Please log in again.");
       navigate("/signin");
       return;
@@ -31,28 +33,38 @@ export default function VerifyOtp() {
   }, [navigate]);
 
   const handleVerify = async () => {
-    if (!email) return;
+    if (!email) {
+      console.error("Cannot verify: No email available");
+      return;
+    }
     
     setIsVerifying(true);
     try {
+      console.log("Verifying OTP for email:", email);
       await verifyOtp(email, verificationCode);
       // Remove the temporary email from storage
       localStorage.removeItem("tempAuthEmail");
     } catch (error) {
       // Error handling is done in verifyOtp
+      console.error("Failed to verify OTP:", error);
     } finally {
       setIsVerifying(false);
     }
   };
 
   const handleResendCode = async () => {
-    if (!email) return;
+    if (!email) {
+      console.error("Cannot resend: No email available");
+      return;
+    }
     
     try {
+      console.log("Resending OTP to email:", email);
       await sendOtpForLogin(email);
       toast.success("A new verification code has been sent to your email");
     } catch (error) {
       // Error handling is done in sendOtpForLogin
+      console.error("Failed to resend OTP:", error);
     }
   };
 
