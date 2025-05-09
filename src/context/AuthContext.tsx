@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -84,12 +83,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log("2FA is enabled for this user, sending OTP code");
         
         // First validate credentials without completing login
+        // Remove the shouldCreateSession option as it's not supported
         const { error: credentialError } = await supabase.auth.signInWithPassword({
           email,
-          password,
-          options: {
-            shouldCreateSession: false // This prevents creating a session until after 2FA
-          }
+          password
         });
         
         if (credentialError) throw credentialError;
@@ -175,13 +172,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(true);
       console.log("Sending OTP to email:", email);
       
-      // Use the OTP option specifically for 2FA verification
+      // Fix: Remove the 'channel: email' option as it's not a valid value
+      // According to the error, only 'sms' or 'whatsapp' are allowed
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
           shouldCreateUser: false,
-          channel: 'email',
-          emailRedirectTo: `${window.location.origin}/dashboard`, // This is used if the user clicks the link instead of using the code
+          // Remove the channel property entirely since we want email by default
         }
       });
 
