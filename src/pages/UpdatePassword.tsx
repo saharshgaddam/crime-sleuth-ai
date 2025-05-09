@@ -20,9 +20,22 @@ export default function UpdatePassword() {
   useEffect(() => {
     // Check if the user is authenticated via the reset password flow
     const checkSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      console.log("Current session:", data.session);
-      setIsAuthenticated(!!data.session);
+      try {
+        console.log("Checking session for password reset flow");
+        const { data, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error("Error checking session:", error);
+          setIsAuthenticated(false);
+          return;
+        }
+        
+        console.log("Current session state:", data.session ? "Session exists" : "No session");
+        setIsAuthenticated(!!data.session);
+      } catch (err) {
+        console.error("Failed to check session:", err);
+        setIsAuthenticated(false);
+      }
     };
 
     checkSession();
@@ -44,12 +57,14 @@ export default function UpdatePassword() {
     setIsLoading(true);
     
     try {
-      const { error } = await supabase.auth.updateUser({
+      console.log("Updating password");
+      const { data, error } = await supabase.auth.updateUser({
         password: password
       });
       
       if (error) throw error;
       
+      console.log("Password updated successfully:", data);
       toast.success("Password updated successfully");
       
       // Short delay before redirecting

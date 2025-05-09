@@ -66,15 +66,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setLoading(true);
       
-      // First verify the credentials without completing the login
-      const { error: credentialError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      
-      if (credentialError) throw credentialError;
-      
-      // Check if the user has 2FA enabled
+      // First check if the user has 2FA enabled before authenticating
+      // This avoids the session being created before 2FA verification
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('two_factor_enabled')
@@ -86,9 +79,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw profileError;
       }
       
-      // If 2FA is enabled, store email and redirect to OTP verification
+      // If 2FA is enabled, store email and send OTP
       if (profileData?.two_factor_enabled) {
-        console.log("2FA is enabled for this user, redirecting to OTP verification");
+        console.log("2FA is enabled for this user, sending OTP code");
+        
+        // First validate credentials without completing login
+        const { error: credentialError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+          options: {
+            shouldCreateSession: false // This prevents creating a session until after 2FA
+          }
+        });
+        
+        if (credentialError) throw credentialError;
         
         // Store the email for the OTP verification step
         localStorage.setItem('tempAuthEmail', email);
@@ -171,11 +175,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(true);
       console.log("Sending OTP to email:", email);
       
+      // Use the OTP option specifically for 2FA verification
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
           shouldCreateUser: false,
-        },
+          channel: 'email',
+          emailRedirectTo: `${window.location.origin}/dashboard`, // This is used if the user clicks the link instead of using the code
+        }
       });
 
       if (error) throw error;
@@ -193,7 +200,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const verifyOtp = async (email: string, token: string) => {
     try {
       setLoading(true);
-      const { error } = await supabase.auth.verifyOtp({
+      const { error, data } = await supabase.auth.verifyOtp({
         email,
         token,
         type: 'email',

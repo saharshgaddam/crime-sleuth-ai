@@ -12,6 +12,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 export default function VerifyOtp() {
   const [verificationCode, setVerificationCode] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isResending, setIsResending] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
   const navigate = useNavigate();
   const { verifyOtp, sendOtpForLogin } = useAuth();
@@ -38,6 +39,11 @@ export default function VerifyOtp() {
       return;
     }
     
+    if (verificationCode.length !== 6) {
+      toast.error("Please enter the complete 6-digit code");
+      return;
+    }
+    
     setIsVerifying(true);
     try {
       console.log("Verifying OTP for email:", email);
@@ -58,6 +64,7 @@ export default function VerifyOtp() {
       return;
     }
     
+    setIsResending(true);
     try {
       console.log("Resending OTP to email:", email);
       await sendOtpForLogin(email);
@@ -65,6 +72,8 @@ export default function VerifyOtp() {
     } catch (error) {
       // Error handling is done in sendOtpForLogin
       console.error("Failed to resend OTP:", error);
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -133,9 +142,16 @@ export default function VerifyOtp() {
                 variant="ghost" 
                 onClick={handleResendCode}
                 className="w-full"
-                disabled={isVerifying}
+                disabled={isVerifying || isResending}
               >
-                Resend Code
+                {isResending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  "Resend Code"
+                )}
               </Button>
             </div>
           </div>
