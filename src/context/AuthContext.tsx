@@ -7,6 +7,7 @@ import { Session, User } from "@supabase/supabase-js";
 
 interface UserProfile {
   name?: string;
+  email?: string;
   two_factor_enabled?: boolean;
 }
 
@@ -65,15 +66,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setLoading(true);
       
-      // Check if the user has 2FA enabled
+      // Check if the user has 2FA enabled by querying the profiles table
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('two_factor_enabled')
         .eq('email', email)
-        .maybeSingle();
+        .single();
       
       if (profileError && profileError.code !== 'PGRST116') {
-        throw profileError;
+        console.error("Error checking 2FA status:", profileError);
       }
       
       // If 2FA is enabled, use OTP flow
@@ -86,7 +87,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (signInError) throw signInError;
         
-        // If password is correct, then send OTP and redirect to verification page
+        // If password is correct, store the email for the OTP verification step
         localStorage.setItem('tempAuthEmail', email);
         
         // Send OTP

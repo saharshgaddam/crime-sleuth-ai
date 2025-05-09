@@ -30,6 +30,7 @@ export default function Profile() {
   const [isTwoFactorEnabled, setIsTwoFactorEnabled] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isTogglingTwoFactor, setIsTogglingTwoFactor] = useState(false);
 
   // Sync local state when profile is loaded
   useEffect(() => {
@@ -86,17 +87,23 @@ export default function Profile() {
     }
   };
 
-  const handleTwoFactorToggle = async (enabled: boolean) => {
+  const handleTwoFactorToggle = async () => {
+    const newValue = !isTwoFactorEnabled;
+    
     try {
-      const result = await toggleTwoFactor(enabled);
+      setIsTogglingTwoFactor(true);
+      const result = await toggleTwoFactor(newValue);
+      
       if (result) {
-        setIsTwoFactorEnabled(enabled);
-        toast.success(`Two-factor authentication ${enabled ? 'enabled' : 'disabled'}`);
+        setIsTwoFactorEnabled(newValue);
+        toast.success(`Two-factor authentication ${newValue ? 'enabled' : 'disabled'}`);
       }
     } catch (error: any) {
       toast.error(error.message || "Failed to update two-factor authentication settings");
       // Reset switch to original state on error
-      setIsTwoFactorEnabled(!enabled);
+      setIsTwoFactorEnabled(!newValue);
+    } finally {
+      setIsTogglingTwoFactor(false);
     }
   };
 
@@ -177,6 +184,8 @@ export default function Profile() {
                     <Switch
                       checked={isTwoFactorEnabled}
                       onCheckedChange={handleTwoFactorToggle}
+                      disabled={isTogglingTwoFactor}
+                      aria-label="Toggle two-factor authentication"
                     />
                   </div>
                 </div>
