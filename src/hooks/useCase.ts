@@ -35,7 +35,7 @@ export const useCase = (caseId: string | undefined) => {
           .from('cases')
           .select('*')
           .eq('id', caseId)
-          .single();
+          .maybeSingle();
           
         if (error) throw error;
         
