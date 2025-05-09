@@ -88,10 +88,11 @@ export default function Profile() {
   };
 
   const handleTwoFactorToggle = async () => {
-    const newValue = !isTwoFactorEnabled;
-    
     try {
       setIsTogglingTwoFactor(true);
+      const newValue = !isTwoFactorEnabled;
+      
+      console.log("Toggling 2FA:", newValue);
       const result = await toggleTwoFactor(newValue);
       
       if (result) {
@@ -99,9 +100,8 @@ export default function Profile() {
         toast.success(`Two-factor authentication ${newValue ? 'enabled' : 'disabled'}`);
       }
     } catch (error: any) {
+      console.error("Failed to toggle 2FA:", error);
       toast.error(error.message || "Failed to update two-factor authentication settings");
-      // Reset switch to original state on error
-      setIsTwoFactorEnabled(!newValue);
     } finally {
       setIsTogglingTwoFactor(false);
     }

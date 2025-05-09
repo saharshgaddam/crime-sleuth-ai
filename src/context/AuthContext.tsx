@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -83,7 +84,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log("2FA is enabled for this user, sending OTP code");
         
         // First validate credentials without completing login
-        // Remove the shouldCreateSession option as it's not supported
         const { error: credentialError } = await supabase.auth.signInWithPassword({
           email,
           password
@@ -172,13 +172,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(true);
       console.log("Sending OTP to email:", email);
       
-      // Fix: Remove the 'channel: email' option as it's not a valid value
-      // According to the error, only 'sms' or 'whatsapp' are allowed
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
           shouldCreateUser: false,
-          // Remove the channel property entirely since we want email by default
         }
       });
 
@@ -222,7 +219,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signup = async (email: string, password: string, name: string) => {
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signUp({
+      const { error, data } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -234,8 +231,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) throw error;
       
-      toast.success("Account created successfully");
-      navigate('/dashboard');
+      // Check if email confirmation is required
+      if (data?.user && data?.session) {
+        toast.success("Account created successfully");
+        navigate('/dashboard');
+      } else {
+        toast.info("Please check your email for the confirmation link");
+        navigate('/signin');
+      }
     } catch (error: any) {
       console.error('Signup error:', error);
       toast.error(error.message || 'Failed to create account');

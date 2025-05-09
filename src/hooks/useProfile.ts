@@ -66,6 +66,7 @@ export const useProfile = () => {
     }
 
     try {
+      console.log("Updating profile with:", updates);
       const { error } = await supabase
         .from('profiles')
         .update(updates)
@@ -73,6 +74,7 @@ export const useProfile = () => {
         
       if (error) throw error;
       
+      // Update local state with new values
       setProfile(prev => prev ? { ...prev, ...updates } : null);
       
       toast({
@@ -93,7 +95,32 @@ export const useProfile = () => {
   };
 
   const toggleTwoFactor = async (enabled: boolean) => {
-    return await updateProfile({ two_factor_enabled: enabled });
+    if (!user || !profile) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "You must be logged in to update 2FA settings",
+      });
+      return false;
+    }
+
+    try {
+      console.log("Toggling 2FA to:", enabled);
+      const { error } = await supabase
+        .from('profiles')
+        .update({ two_factor_enabled: enabled })
+        .eq('id', user.id);
+        
+      if (error) throw error;
+      
+      // Update local state
+      setProfile(prev => prev ? { ...prev, two_factor_enabled: enabled } : null);
+      
+      return true;
+    } catch (error: any) {
+      console.error("2FA toggle error:", error);
+      throw error;
+    }
   };
 
   return { profile, loading, updateProfile, toggleTwoFactor };

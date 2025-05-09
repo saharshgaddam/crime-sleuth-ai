@@ -36,6 +36,8 @@ export default function VerifyOtp() {
   const handleVerify = async () => {
     if (!email) {
       console.error("Cannot verify: No email available");
+      toast.error("Session expired. Please log in again.");
+      navigate("/signin");
       return;
     }
     
@@ -44,12 +46,11 @@ export default function VerifyOtp() {
       return;
     }
     
-    setIsVerifying(true);
     try {
+      setIsVerifying(true);
       console.log("Verifying OTP for email:", email);
       await verifyOtp(email, verificationCode);
-      // Remove the temporary email from storage
-      localStorage.removeItem("tempAuthEmail");
+      // Navigation and success handling is done in verifyOtp function
     } catch (error) {
       // Error handling is done in verifyOtp
       console.error("Failed to verify OTP:", error);
@@ -61,11 +62,13 @@ export default function VerifyOtp() {
   const handleResendCode = async () => {
     if (!email) {
       console.error("Cannot resend: No email available");
+      toast.error("Session expired. Please log in again.");
+      navigate("/signin");
       return;
     }
     
-    setIsResending(true);
     try {
+      setIsResending(true);
       console.log("Resending OTP to email:", email);
       await sendOtpForLogin(email);
       toast.success("A new verification code has been sent to your email");
