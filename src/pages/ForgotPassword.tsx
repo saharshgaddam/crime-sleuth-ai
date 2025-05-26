@@ -27,9 +27,8 @@ export default function ForgotPassword() {
     setIsLoading(true);
     
     try {
-      // Get the current site URL for the redirect
-      const siteUrl = window.location.origin;
-      const redirectUrl = `${siteUrl}/update-password`;
+      // Use the actual Lovable project URL instead of window.location.origin
+      const redirectUrl = `${window.location.protocol}//${window.location.host}/update-password`;
       
       console.log("Sending password reset to:", email);
       console.log("Using redirect URL:", redirectUrl);
