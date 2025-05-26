@@ -49,6 +49,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log("Auth state changed:", event, session);
         setSession(session);
         setUser(session?.user ? session.user : null);
+        
+        // Handle email confirmation
+        if (event === 'SIGNED_IN' && session?.user?.email_confirmed_at) {
+          console.log("User signed in with confirmed email");
+          toast.success("Welcome! You're now signed in.");
+        }
       }
     );
 
@@ -67,7 +73,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(true);
       
       // First check if the user has 2FA enabled before authenticating
-      // This avoids the session being created before 2FA verification
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('two_factor_enabled')
@@ -76,23 +81,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (profileError && profileError.code !== 'PGRST116') {
         console.error("Error checking 2FA status:", profileError);
-        throw profileError;
       }
       
-      // If 2FA is enabled, store email and send OTP
+      // If 2FA is enabled, handle separately
       if (profileData?.two_factor_enabled) {
         console.log("2FA is enabled for this user, sending OTP code");
         
-        // First validate credentials without completing login
-        const { error: credentialError } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        });
-        
-        if (credentialError) throw credentialError;
-        
         // Store the email for the OTP verification step
         localStorage.setItem('tempAuthEmail', email);
+        localStorage.setItem('tempAuthPassword', password);
         
         // Send OTP
         await sendOtpForLogin(email);
@@ -104,12 +101,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // If 2FA is not enabled, complete the login
       console.log("2FA is not enabled, completing normal login");
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) throw error;
+      
+      // Check if email is confirmed
+      if (data.user && !data.user.email_confirmed_at) {
+        toast.info("Please check your email and click the confirmation link to complete your account setup.");
+        return;
+      }
       
       toast.success("Signed in successfully");
       navigate('/dashboard');
@@ -169,7 +172,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const sendOtpForLogin = async (email: string) => {
     try {
-      setLoading(true);
       console.log("Sending OTP to email:", email);
       
       const { error } = await supabase.auth.signInWithOtp({
@@ -186,24 +188,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('OTP send error:', error);
       toast.error(error.message || 'Failed to send verification code');
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
   const verifyOtp = async (email: string, token: string) => {
     try {
       setLoading(true);
-      const { error, data } = await supabase.auth.verifyOtp({
-        email,
-        token,
-        type: 'email',
-      });
-
-      if (error) throw error;
       
-      // Remove the temporary email from storage
-      localStorage.removeItem('tempAuthEmail');
+      // For 2FA login, we need to complete the password auth first
+      const tempPassword = localStorage.getItem('tempAuthPassword');
+      
+      if (tempPassword) {
+        // This is a 2FA login - verify OTP first, then complete password auth
+        const { error: otpError } = await supabase.auth.verifyOtp({
+          email,
+          token,
+          type: 'email',
+        });
+
+        if (otpError) throw otpError;
+        
+        // Now complete the password authentication
+        const { error: authError } = await supabase.auth.signInWithPassword({
+          email,
+          password: tempPassword,
+        });
+        
+        if (authError) throw authError;
+        
+        // Clean up temporary storage
+        localStorage.removeItem('tempAuthEmail');
+        localStorage.removeItem('tempAuthPassword');
+      } else {
+        // Regular OTP verification
+        const { error } = await supabase.auth.verifyOtp({
+          email,
+          token,
+          type: 'email',
+        });
+
+        if (error) throw error;
+        
+        localStorage.removeItem('tempAuthEmail');
+      }
       
       toast.success("Verified successfully");
       navigate('/dashboard');
@@ -219,29 +246,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signup = async (email: string, password: string, name: string) => {
     try {
       setLoading(true);
+      console.log("Starting signup process for:", email);
+      
       const { error, data } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
             name,
+            role: 'investigator'
           },
         },
       });
 
       if (error) throw error;
       
-      // Check if email confirmation is required
-      if (data?.user && data?.session) {
-        toast.success("Account created successfully");
+      console.log("Signup response:", data);
+      
+      // Check if user needs to confirm email
+      if (data?.user && !data?.session) {
+        toast.info("Please check your email for the confirmation link to complete your account setup.");
+        console.log("Email confirmation required - user created but no session");
+        navigate('/signin');
+      } else if (data?.user && data?.session) {
+        toast.success("Account created successfully! Welcome!");
+        console.log("Account created and automatically signed in");
         navigate('/dashboard');
       } else {
-        toast.info("Please check your email for the confirmation link");
-        navigate('/signin');
+        toast.error("Something went wrong during signup. Please try again.");
+        console.error("Unexpected signup response:", data);
       }
     } catch (error: any) {
       console.error('Signup error:', error);
-      toast.error(error.message || 'Failed to create account');
+      
+      // Handle specific signup errors
+      if (error.message?.includes('User already registered')) {
+        toast.error("An account with this email already exists. Please sign in instead.");
+      } else if (error.message?.includes('Password should be at least')) {
+        toast.error("Password must be at least 6 characters long.");
+      } else if (error.message?.includes('Invalid email')) {
+        toast.error("Please enter a valid email address.");
+      } else {
+        toast.error(error.message || 'Failed to create account. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -258,6 +305,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // Clear any local storage related to auth
       localStorage.removeItem('tempAuthEmail');
+      localStorage.removeItem('tempAuthPassword');
       
       navigate('/');
       toast.success("Signed out successfully");

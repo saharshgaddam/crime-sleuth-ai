@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -46,11 +47,14 @@ export default function SignUp() {
   });
 
   async function onSubmit(data: SignupFormValues) {
+    if (isLoading) return; // Prevent double submission
+    
     try {
       setIsLoading(true);
+      console.log("Attempting signup with data:", { ...data, password: '[REDACTED]' });
       await signup(data.email, data.password, data.name);
-      // Navigate happens in the auth context after successful registration
     } catch (error: any) {
+      console.error("Signup submission error:", error);
       toast.error(error.message || "Please check your details and try again.");
     } finally {
       setIsLoading(false);
@@ -58,10 +62,13 @@ export default function SignUp() {
   }
 
   const handleGoogleSignIn = async () => {
+    if (isGoogleLoading) return; // Prevent double submission
+    
     try {
       setIsGoogleLoading(true);
       await loginWithGoogle();
     } catch (error: any) {
+      console.error("Google signin error:", error);
       toast.error(error.message || "Unable to sign in with Google. Please try again.");
     } finally {
       setIsGoogleLoading(false);
